@@ -66,6 +66,7 @@ fun SpeedTest(core: LinkCore, online: Boolean) {
                 }
             }, enabled = online && running == null, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.speed_run)) }
         }
+        SimSpeedCard(core, online)
         Section(Icons.Filled.Language, stringResource(R.string.speed_internet), Tint.Purple) {
             Muted(stringResource(R.string.speed_internet_sub))
             Result(net, running == "net")

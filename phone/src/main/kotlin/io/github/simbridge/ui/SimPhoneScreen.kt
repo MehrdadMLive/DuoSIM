@@ -1,5 +1,15 @@
 package io.github.simbridge.ui
 
+import androidx.compose.material.icons.filled.SignalCellularAlt
+import androidx.compose.material.icons.filled.WifiTethering
+import androidx.compose.material.icons.filled.BatterySaver
+import androidx.compose.material.icons.automirrored.filled.ScreenShare
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Voicemail
+import androidx.compose.material.icons.filled.Notifications
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.core.RepeatMode
@@ -64,6 +74,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.filled.Settings
@@ -87,17 +98,20 @@ import io.github.simbridge.LinkState
 import io.github.simbridge.R
 import kotlinx.coroutines.delay
 
-/** Dashboard tab: the SIM phone at a glance, plus everything the main phone can control on it. */
+/** The pages one level below the SIM phone home. */
+enum class Tool(val title: Int) {
+    USSD(R.string.dash_ussd), DATA(R.string.dash_data), NETWORK(R.string.tool_network), HOTSPOT(R.string.tool_hotspot),
+    LOCATE(R.string.dash_locate), SPEED(R.string.speed_title), BATTERY(R.string.tool_battery), APPS(R.string.notif_title),
+    CALLS(R.string.tool_calls), CHECK(R.string.chk_title),
+}
+
+/**
+ * The SIM phone: its state at a glance, switches as tiles, and everything else one tap away.
+ * With [tool] set, shows that page instead (opened from the home's lists).
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun SimPhoneScreen(
-    core: LinkCore,
-    onRemote: () -> Unit = {},
-    onSettings: () -> Unit = {},
-    onOpenChat: (String, String) -> Unit = { _, _ -> },
-    onNewChat: () -> Unit = {},
-    startPage: Int = 1,
-) {
+fun SimPhoneScreen(core: LinkCore, tool: Tool? = null, onTool: (Tool?) -> Unit = {}, onRemote: () -> Unit = {}) {
     val pending by core.control.pending.collectAsState()
     val ctx = LocalContext.current
     val st by core.control.status.collectAsState()
@@ -113,284 +127,308 @@ fun SimPhoneScreen(
     var locating by remember { mutableStateOf(false) }
     var confirm by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
     var addApn by remember { mutableStateOf(false) }
-    // Messages, Overview, Controls, USSD, Data, Places, Speed: swipe between them, tabs at the bottom.
-    val pages = listOf(R.string.tab_messages, R.string.dash_tab_overview, R.string.dash_tab_controls, R.string.dash_ussd,
-        R.string.dash_tab_data, R.string.dash_tab_places, R.string.speed_title)
-    val pager = androidx.compose.foundation.pager.rememberPagerState(startPage) { pages.size }
     val guard = rememberGuard(core)
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
     LaunchedEffect(online) { while (online) { core.control.refresh(); delay(30_000) } }
     LaunchedEffect(ussd) { if (ussd != null) waitingUssd = false }
     LaunchedEffect(loc) { if (loc != null) locating = false }
     LaunchedEffect(notice) { notice?.let { android.widget.Toast.makeText(ctx, it, android.widget.Toast.LENGTH_LONG).show(); core.control.clearNotice() } }
+    val s = st
 
-    Scaffold(
-        bottomBar = {
-            androidx.compose.material3.PrimaryScrollableTabRow(pager.currentPage, edgePadding = 4.dp,
-                modifier = Modifier.navigationBarsPadding()) {
-                pages.forEachIndexed { i, t ->
-                    androidx.compose.material3.Tab(pager.currentPage == i, { scope.launch { pager.animateScrollToPage(i) } },
-                        text = { Text(stringResource(t)) })
+    if (tool == null) PageScaffold(stringResource(R.string.tab_sim_phone), onBack = null, actions = {
+        IconButton({ core.control.refresh() }, enabled = online) { Icon(Icons.Filled.Refresh, stringResource(R.string.refresh)) }
+    }) {
+        Hero(s, online, link.detail)
+        Group(null, listOf { GroupRow(Icons.Filled.HealthAndSafety, stringResource(R.string.chk_title), stringResource(R.string.chk_sub), Tint.Blue, { onTool(Tool.CHECK) }) })
+        GroupLabel(stringResource(R.string.home_controls))
+        TileGrid(listOf(
+            { m -> Tile(Icons.Filled.SignalCellularAlt, stringResource(R.string.dash_mobile_data), onOff(pending["mobile-data"] as Boolean? ?: s?.dataOn),
+                pending["mobile-data"] as Boolean? ?: s?.dataOn == true, m, busy = pending.containsKey("mobile-data"), enabled = online,
+                onLongClick = { onTool(Tool.DATA) }) { confirm = "mobile-data" to (s?.dataOn != true) } },
+            { m -> Tile(Icons.Filled.WifiTethering, stringResource(R.string.hs_title),
+                if (s?.hotspot == true) stringResource(R.string.home_clients, s.clients.size) else onOff(false),
+                pending["hotspot"] as Boolean? ?: s?.hotspot == true, m, busy = pending.containsKey("hotspot"), enabled = online,
+                onLongClick = { onTool(Tool.HOTSPOT) }) { confirm = "hotspot" to (s?.hotspot != true) } },
+            { m -> Tile(Icons.Filled.BatterySaver, stringResource(R.string.home_saver), onOff(pending["power-saver"] as Boolean? ?: s?.powerSaver),
+                pending["power-saver"] as Boolean? ?: s?.powerSaver == true, m, busy = pending.containsKey("power-saver"), enabled = online,
+                onLongClick = { onTool(Tool.BATTERY) }) { val on = s?.powerSaver != true; guard { core.control.control("power-saver", on) } } },
+            { m -> Tile(Icons.AutoMirrored.Filled.ScreenShare, stringResource(R.string.home_remote), stringResource(R.string.home_remote_sub), false, m,
+                enabled = online) { guard(onRemote) } },
+            { m -> Tile(Icons.Filled.NotificationsActive, stringResource(R.string.dash_ring), stringResource(R.string.home_ring_sub), false, m,
+                busy = pending.containsKey("find"), enabled = online, onLongClick = { core.control.control("find", false) }) { core.control.control("find", true) } },
+            { m -> Tile(Icons.Filled.RestartAlt, stringResource(R.string.dash_restart), stringResource(R.string.home_restart_sub), false, m,
+                busy = pending.containsKey("restart"), enabled = online) { core.control.control("restart", true) } },
+        ))
+        val sims = s?.sims.orEmpty()
+        Group(stringResource(R.string.home_tools), listOf(
+            { GroupRow(Icons.Filled.Dialpad, stringResource(R.string.dash_ussd), stringResource(R.string.home_ussd_sub), Tint.Teal, { onTool(Tool.USSD) }, enabled = online) },
+            { GroupRow(Icons.Filled.DataUsage, stringResource(R.string.dash_data),
+                s?.dataToday?.let { stringResource(R.string.home_data_sub, bytes(it), bytes(s.dataMonth ?: 0)) }, Tint.Purple, { onTool(Tool.DATA) }) },
+            { GroupRow(Icons.Filled.SimCard, stringResource(R.string.tool_network),
+                sims.joinToString(" · ") { "SIM ${it.slot} " + it.carrier.ifBlank { it.name } + " " + it.network }.ifBlank { null }, Tint.Blue, { onTool(Tool.NETWORK) }) },
+            { GroupRow(Icons.Filled.Wifi, stringResource(R.string.tool_hotspot), stringResource(R.string.places_sub), Tint.Teal, { onTool(Tool.HOTSPOT) }) },
+            { GroupRow(Icons.Filled.LocationOn, stringResource(R.string.dash_locate), stringResource(R.string.dash_locate_sub), Tint.Red, { onTool(Tool.LOCATE) }, enabled = online) },
+            { GroupRow(Icons.Filled.Speed, stringResource(R.string.speed_title), stringResource(R.string.home_speed_sub), Tint.Orange, { onTool(Tool.SPEED) }) },
+        ))
+        Group(stringResource(R.string.home_more), listOf(
+            { GroupRow(Icons.Filled.Voicemail, stringResource(R.string.tool_calls),
+                stringResource(if (s?.vmOn == true) R.string.home_vm_on else R.string.home_vm_off), Tint.Green, { onTool(Tool.CALLS) }) },
+            { GroupRow(Icons.Filled.BatteryChargingFull, stringResource(R.string.tool_battery),
+                s?.chargeLimit?.let { if (it == "off") null else stringResource(R.string.home_limit, it) } ?: stringResource(R.string.dash_charge_limit_sub), Tint.Green, { onTool(Tool.BATTERY) }) },
+            { GroupRow(Icons.Filled.Notifications, stringResource(R.string.notif_title), stringResource(R.string.notif_sub), Tint.Purple, { onTool(Tool.APPS) }) },
+        ))
+    } else PageScaffold(stringResource(tool.title), onBack = { onTool(null) }, scroll = tool != Tool.SPEED) {
+        when (tool) {
+            Tool.USSD -> {
+        Section(Icons.Filled.Dialpad, stringResource(R.string.dash_ussd), Tint.Teal) {
+            Muted(stringResource(R.string.dash_ussd_sub))
+            Spacer(Modifier.height(8.dp))
+            if ((s?.sims?.size ?: 0) > 1) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                s!!.sims.forEach { sim -> FilterChip(ussdSim == sim.slot, { ussdSim = if (ussdSim == sim.slot) null else sim.slot },
+                    label = { Text("SIM ${sim.slot}") }) }
+            }
+            // The network's answer first, like the phone's own USSD dialog; menus can be answered.
+            val inMenu = ussd?.session == true
+            ussd?.let { r ->
+                androidx.compose.material3.Card(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                    Text(r.text, Modifier.padding(14.dp), style = MaterialTheme.typography.bodyLarge,
+                        color = if (r.ok) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error)
                 }
             }
-        },
-        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0),
-    ) { pad ->
-        androidx.compose.foundation.pager.HorizontalPager(pager, Modifier.fillMaxSize().padding(pad), beyondViewportPageCount = 1) { page ->
-        if (page == 0) ConversationsScreen(core, onOpenChat, onNewChat, onSettings)
-        else Column(Modifier.fillMaxSize()) {
-        val tab = page - 1
-        TopAppBar(
-            title = { Text(stringResource(pages[page])) },
-            actions = {
-                IconButton({ core.control.refresh() }, enabled = online) { Icon(Icons.Filled.Refresh, stringResource(R.string.refresh)) }
-                IconButton(onSettings) { Icon(Icons.Filled.Settings, stringResource(R.string.tab_settings)) }
-            },
-        )
-        if (tab == 5) SpeedTest(core, online)
-        else Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            val s = st
-            if (tab == 0) Hero(s, online, link.detail)
+            // Own dial pad: no system keyboard covering the field, and always the phone layout.
+            Text(code.ifEmpty { if (inMenu) "1" else "*100#" }, style = MaterialTheme.typography.headlineMedium,
+                color = if (code.isEmpty()) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            DialPad({ if (code.length < 40) code += it }, { code = code.dropLast(1) }, { code = "" })
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (inMenu) OutlinedButton({ core.control.ussdCancel(); code = "" }, Modifier.weight(1f)) { Text(stringResource(R.string.cancel)) }
+                Button({
+                    val c = code
+                    guard { waitingUssd = if (inMenu) core.control.ussdReply(c) else core.control.ussd(c, ussdSim) }
+                    code = ""
+                }, enabled = online && !waitingUssd && (if (inMenu) code.isNotEmpty() else code.endsWith("#")),
+                    modifier = Modifier.weight(1f)) { Text(stringResource(if (inMenu) R.string.ussd_reply else R.string.send)) }
+            }
+            if (waitingUssd) { Spacer(Modifier.height(8.dp)); LinearProgressIndicator(Modifier.fillMaxWidth()) }
+        }            }
+            Tool.DATA -> {
+                DataLimitCard(core, s, online)
+        if (s != null) Section(Icons.Filled.DataUsage, stringResource(R.string.dash_data), Tint.Purple) {
+            if (s.dataToday == null) Muted(stringResource(R.string.dash_data_unknown))
+            else {
+                Row {
+                    Stat(stringResource(R.string.dash_today), bytes(s.dataToday), Modifier.weight(1f))
+                    Stat(stringResource(R.string.dash_month), bytes(s.dataMonth ?: 0), Modifier.weight(1f))
+                }
+                val detail by core.control.dataDetail.collectAsState()
+                var open by remember { mutableStateOf(false) }
+                TextButton({ open = !open; if (open) core.control.loadDataDetail() }, enabled = online) {
+                    Text(stringResource(if (open) R.string.dash_data_hide else R.string.dash_data_details))
+                }
+                if (open) detail?.let { d -> DataChart(d) } ?: LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
+        }
 
-            if (tab == 0) Section(Icons.Filled.SimCard, stringResource(R.string.dash_sims), Tint.Blue) {
-                if (s == null) Muted(stringResource(R.string.dash_waiting))
-                else if (s.sims.isEmpty()) Muted(stringResource(R.string.dash_no_sim))
-                else s.sims.forEachIndexed { i, sim ->
-                    if (i > 0) Spacer(Modifier.height(12.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Bars(sim.level)
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("SIM ${sim.slot}" + (if (sim.esim) " (eSIM)" else "") + " · " + sim.carrier.ifBlank { sim.name },
-                                style = MaterialTheme.typography.bodyLarge)
-                            Muted(listOf(sim.number, sim.network, if (sim.dbm < 0) "${sim.dbm} dBm" else "",
-                                if (sim.roaming) stringResource(R.string.dash_roaming) else "").filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "—" })
-                        }
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    Muted(stringResource(R.string.dash_network_mode))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("5g", "4g", "3g", "2g").forEach { m ->
-                            val want = pending["net:${sim.slot}"]
-                            FilterChip((want ?: sim.mode) == m, { core.control.networkMode(sim.slot, m) }, enabled = online,
-                                label = { Text(m.uppercase()) },
-                                trailingIcon = if (want == m) { { Spinner() } } else null)
-                        }
+            }
+            Tool.NETWORK -> {
+                PhonesCard(s)
+        Section(Icons.Filled.SimCard, stringResource(R.string.dash_sims), Tint.Blue) {
+            if (s == null) Muted(stringResource(R.string.dash_waiting))
+            else if (s.sims.isEmpty()) Muted(stringResource(R.string.dash_no_sim))
+            else s.sims.forEachIndexed { i, sim ->
+                if (i > 0) Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Bars(sim.level)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("SIM ${sim.slot}" + (if (sim.esim) " (eSIM)" else "") + " · " + sim.carrier.ifBlank { sim.name },
+                            style = MaterialTheme.typography.bodyLarge)
+                        Muted(listOf(sim.number, sim.network, if (sim.dbm < 0) "${sim.dbm} dBm" else "",
+                            if (sim.roaming) stringResource(R.string.dash_roaming) else "").filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "—" })
                     }
                 }
-                if (s != null && s.sims.size > 1) {
-                    Spacer(Modifier.height(12.dp))
-                    var def by remember { mutableStateOf(core.prefs.outgoingSim) }
-                    Muted(stringResource(R.string.dash_text_sim))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(def == 0, { def = 0; core.prefs.outgoingSim = 0 }, label = { Text(stringResource(R.string.dash_default)) })
-                        s.sims.forEach { sim -> FilterChip(def == sim.slot, { def = sim.slot; core.prefs.outgoingSim = sim.slot }, label = { Text("SIM ${sim.slot}") }) }
+                Spacer(Modifier.height(6.dp))
+                Muted(stringResource(R.string.dash_network_mode))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("5g", "4g", "3g", "2g").forEach { m ->
+                        val want = pending["net:${sim.slot}"]
+                        FilterChip((want ?: sim.mode) == m, { core.control.networkMode(sim.slot, m) }, enabled = online,
+                            label = { Text(m.uppercase()) },
+                            trailingIcon = if (want == m) { { Spinner() } } else null)
                     }
                 }
             }
-
-            if (tab == 3 && s != null) Section(Icons.Filled.DataUsage, stringResource(R.string.dash_data), Tint.Purple) {
-                if (s.dataToday == null) Muted(stringResource(R.string.dash_data_unknown))
-                else {
-                    Row {
-                        Stat(stringResource(R.string.dash_today), bytes(s.dataToday), Modifier.weight(1f))
-                        Stat(stringResource(R.string.dash_month), bytes(s.dataMonth ?: 0), Modifier.weight(1f))
-                    }
-                    val detail by core.control.dataDetail.collectAsState()
-                    var open by remember { mutableStateOf(false) }
-                    TextButton({ open = !open; if (open) core.control.loadDataDetail() }, enabled = online) {
-                        Text(stringResource(if (open) R.string.dash_data_hide else R.string.dash_data_details))
-                    }
-                    if (open) detail?.let { d -> DataChart(d) } ?: LinearProgressIndicator(Modifier.fillMaxWidth())
-                }
-            }
-
-            if (tab == 0) MissedCalls(core)
-            if (tab == 0 && s != null) Section(Icons.Filled.Devices, stringResource(R.string.dash_hotspot_clients, s.clients.size), Tint.Teal) {
-                if (!s.hotspot) Muted(stringResource(R.string.dash_hotspot_off))
-                else if (s.clients.isEmpty()) Muted(stringResource(R.string.dash_no_clients))
-                else s.clients.forEach { c ->
-                    Text("${c.ip}  ·  …${c.mac}" + if (c.simbridge) "  ·  SimBridge" else "", style = MaterialTheme.typography.bodyMedium)
-                }
-            }
-
-            if (tab == 1) Section(Icons.Filled.SettingsRemote, stringResource(R.string.dash_remote), Tint.Orange) {
-                ToggleRow(stringResource(R.string.dash_saver), stringResource(R.string.dash_saver_sub), s?.powerSaver, online,
-                    pending["power-saver"] as Boolean?) { on -> guard { core.control.control("power-saver", on) } }
-                ToggleRow(stringResource(R.string.dash_mobile_data), stringResource(R.string.dash_mobile_data_sub), s?.dataOn, online,
-                    pending["mobile-data"] as Boolean?) { confirm = "mobile-data" to it }
-                ToggleRow(stringResource(R.string.dash_hotspot), stringResource(R.string.dash_hotspot_sub), s?.hotspot, online,
-                    pending["hotspot"] as Boolean?) { confirm = "hotspot" to it }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                    Button({ core.control.control("find", true) }, enabled = online) {
-                        if (pending.containsKey("find")) { Spinner(MaterialTheme.colorScheme.onPrimary); Spacer(Modifier.width(8.dp)) }
-                        Text(stringResource(R.string.dash_ring))
-                    }
-                    OutlinedButton({ core.control.control("find", false) }, enabled = online) { Text(stringResource(R.string.dash_stop)) }
-                    OutlinedButton({ core.control.control("restart", true) }, enabled = online) {
-                        if (pending.containsKey("restart")) { Spinner(); Spacer(Modifier.width(8.dp)) }
-                        Text(stringResource(R.string.dash_restart))
-                    }
-                    androidx.compose.material3.FilledTonalButton({ guard(onRemote) }, enabled = online) { Text(stringResource(R.string.dash_remote_screen)) }
-                }
-            }
-            // Samsung battery protection: stop charging at a level, for a phone that is always plugged in.
-            if (tab == 1) Section(Icons.Filled.BatteryChargingFull, stringResource(R.string.dash_charge_limit), Tint.Green) {
-                Muted(stringResource(R.string.dash_charge_limit_sub))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 6.dp)) {
-                    listOf("off", "80", "85", "90", "95").forEach { v ->
-                        FilterChip(s?.chargeLimit == v, { guard { core.control.setChargeLimit(v) } }, enabled = online,
-                            label = { Text(if (v == "off") stringResource(R.string.off) else "$v %") })
-                    }
-                }
-                ToggleRow(stringResource(R.string.dash_report), stringResource(R.string.dash_report_sub), s?.dailyReport, online, null) {
-                    core.control.setDailyReport(it)
-                }
-            }
-            if (tab == 1) AppNotifSection(core, online)
-            if (tab == 4) PlacesSection(core, online)
-
-            if (tab == 1) Section(Icons.Filled.Call, stringResource(R.string.dash_calls), Tint.Green) {
-                Muted(stringResource(R.string.dash_voicemail_sub))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 6.dp)) {
-                    listOf(0, 15, 25, 40).forEach { sec ->
-                        FilterChip(s?.noAnswerSec == sec, { core.control.setNoAnswer(sec) }, enabled = online,
-                            label = { Text(if (sec == 0) stringResource(R.string.off) else "$sec s") })
-                    }
-                }
-                // SimBridge's own voicemail and call screening, run by the SIM phone.
-                ToggleRow(stringResource(R.string.vm_title), stringResource(R.string.vm_sub), s?.vmOn, online, null) {
-                    core.control.setMachine(voicemail = it)
-                }
-                Muted(stringResource(R.string.screen_sub))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 4.dp)) {
-                    listOf(0 to R.string.off, 1 to R.string.screen_unknown, 2 to R.string.screen_hidden).forEach { (m, label) ->
-                        FilterChip(s?.screenMode == m, { core.control.setMachine(screen = m) }, enabled = online, label = { Text(stringResource(label)) })
-                    }
-                }
-                var editPrompts by remember { mutableStateOf(false) }
-                TextButton({ editPrompts = true }, enabled = online && s != null) { Text(stringResource(R.string.vm_edit)) }
-                if (editPrompts && s != null) {
-                    var g by remember { mutableStateOf(s.greeting) }
-                    var q by remember { mutableStateOf(s.screenPrompt) }
-                    androidx.compose.material3.AlertDialog(
-                        onDismissRequest = { editPrompts = false },
-                        title = { Text(stringResource(R.string.vm_edit)) },
-                        text = {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                androidx.compose.material3.OutlinedTextField(g, { g = it.take(300) }, label = { Text(stringResource(R.string.vm_greeting)) })
-                                androidx.compose.material3.OutlinedTextField(q, { q = it.take(300) }, label = { Text(stringResource(R.string.screen_prompt)) })
-                            }
-                        },
-                        confirmButton = { TextButton({ core.control.setMachine(greeting = g, screenPrompt = q); editPrompts = false }) { Text(stringResource(R.string.save)) } },
-                        dismissButton = { TextButton({ editPrompts = false }) { Text(stringResource(R.string.cancel)) } },
-                    )
-                }
+            if (s != null && s.sims.size > 1) {
                 Spacer(Modifier.height(12.dp))
-                Text(stringResource(R.string.dash_audio_test), style = MaterialTheme.typography.bodyLarge)
-                Muted(stringResource(R.string.dash_audio_test_sub))
-                var testNumber by remember(s?.voicemail) { mutableStateOf(s?.voicemail.orEmpty()) }
-                val test by core.control.audioTest.collectAsState()
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(testNumber, { v -> testNumber = v.filter { it.isDigit() || it in "+*#" } }, singleLine = true,
-                        label = { Text(stringResource(R.string.dash_test_number)) }, modifier = Modifier.weight(1f),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
-                    Spacer(Modifier.width(8.dp))
-                    Button({ core.control.runAudioTest(testNumber) }, enabled = online && testNumber.length >= 3 && test != "…") {
-                        Text(stringResource(R.string.dash_run_test))
-                    }
-                }
-                test?.let { t ->
-                    Spacer(Modifier.height(8.dp))
-                    if (t == "…") LinearProgressIndicator(Modifier.fillMaxWidth()) else {
-                        Text(t, style = MaterialTheme.typography.bodyMedium)
-                        TextButton({
-                            val body = Uri.encode("Phone: ${s?.model}\nAndroid: ${s?.androidVersion}\nGateway: ${s?.version}\nResult: $t\n")
-                            runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW,
-                                Uri.parse("https://github.com/ttabouch12/simbridge/issues/new?labels=compatibility&title=" +
-                                    Uri.encode("Compatibility: ${s?.model}") + "&body=$body"))) }
-                        }) { Text(stringResource(R.string.dash_share_result)) }
-                    }
+                var def by remember { mutableStateOf(core.prefs.outgoingSim) }
+                Muted(stringResource(R.string.dash_text_sim))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(def == 0, { def = 0; core.prefs.outgoingSim = 0 }, label = { Text(stringResource(R.string.dash_default)) })
+                    s.sims.forEach { sim -> FilterChip(def == sim.slot, { def = sim.slot; core.prefs.outgoingSim = sim.slot }, label = { Text("SIM ${sim.slot}") }) }
                 }
             }
+        }
 
-            if (tab == 4) Section(Icons.Filled.LocationOn, stringResource(R.string.dash_locate), Tint.Red) {
-                Muted(stringResource(R.string.dash_locate_sub))
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Button({ locating = core.control.locate() }, enabled = online && !locating) { Text(stringResource(R.string.dash_locate_now)) }
-                    if (locating) { Spacer(Modifier.width(12.dp)); LinearProgressIndicator(Modifier.weight(1f)) }
-                }
-                loc?.let { l ->
-                    Spacer(Modifier.height(8.dp))
-                    if (!l.ok) Text(stringResource(R.string.dash_locate_failed), color = MaterialTheme.colorScheme.error)
-                    else {
-                        OsmMap(l.lat, l.lon, l.accuracy)
-                        Spacer(Modifier.height(6.dp))
-                        Text("%.5f, %.5f  ±%.0f m".format(l.lat, l.lon, l.accuracy), style = MaterialTheme.typography.bodyLarge)
-                        TextButton({
-                            runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:${l.lat},${l.lon}?q=${l.lat},${l.lon}(SIM phone)"))) }
-                        }) { Text(stringResource(R.string.dash_open_map)) }
-                    }
-                }
+        Section(Icons.Filled.SettingsInputAntenna, stringResource(R.string.dash_apn), Tint.Blue) {
+            Muted(stringResource(R.string.dash_apn_sub))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                OutlinedButton({ core.control.loadApns() }, enabled = online) { Text(stringResource(R.string.dash_apn_load)) }
+                TextButton({ addApn = true }, enabled = online) { Text(stringResource(R.string.dash_apn_add)) }
             }
-
-            if (tab == 3) Section(Icons.Filled.SettingsInputAntenna, stringResource(R.string.dash_apn), Tint.Blue) {
-                Muted(stringResource(R.string.dash_apn_sub))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                    OutlinedButton({ core.control.loadApns() }, enabled = online) { Text(stringResource(R.string.dash_apn_load)) }
-                    TextButton({ addApn = true }, enabled = online) { Text(stringResource(R.string.dash_apn_add)) }
-                }
-                apns?.let { list ->
-                    if (list.isEmpty()) Muted(stringResource(R.string.dash_apn_none))
-                    list.forEach { a ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(a.preferred, { core.control.selectApn(a.id) }, enabled = online)
-                            Column {
-                                Text(a.name.ifBlank { a.apn }, style = MaterialTheme.typography.bodyLarge)
-                                Muted("${a.apn} · ${a.type}")
-                            }
+            apns?.let { list ->
+                if (list.isEmpty()) Muted(stringResource(R.string.dash_apn_none))
+                list.forEach { a ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(a.preferred, { core.control.selectApn(a.id) }, enabled = online)
+                        Column {
+                            Text(a.name.ifBlank { a.apn }, style = MaterialTheme.typography.bodyLarge)
+                            Muted("${a.apn} · ${a.type}")
                         }
                     }
                 }
             }
+        }
 
-            if (tab == 2) Section(Icons.Filled.Dialpad, stringResource(R.string.dash_ussd), Tint.Teal) {
-                Muted(stringResource(R.string.dash_ussd_sub))
-                Spacer(Modifier.height(8.dp))
-                if ((s?.sims?.size ?: 0) > 1) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    s!!.sims.forEach { sim -> FilterChip(ussdSim == sim.slot, { ussdSim = if (ussdSim == sim.slot) null else sim.slot },
-                        label = { Text("SIM ${sim.slot}") }) }
-                }
-                // The network's answer first, like the phone's own USSD dialog; menus can be answered.
-                val inMenu = ussd?.session == true
-                ussd?.let { r ->
-                    androidx.compose.material3.Card(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                        Text(r.text, Modifier.padding(14.dp), style = MaterialTheme.typography.bodyLarge,
-                            color = if (r.ok) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error)
-                    }
-                }
-                // Own dial pad: no system keyboard covering the field, and always the phone layout.
-                Text(code.ifEmpty { if (inMenu) "1" else "*100#" }, style = MaterialTheme.typography.headlineMedium,
-                    color = if (code.isEmpty()) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                DialPad({ if (code.length < 40) code += it }, { code = code.dropLast(1) }, { code = "" })
-                Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (inMenu) OutlinedButton({ core.control.ussdCancel(); code = "" }, Modifier.weight(1f)) { Text(stringResource(R.string.cancel)) }
-                    Button({
-                        val c = code
-                        guard { waitingUssd = if (inMenu) core.control.ussdReply(c) else core.control.ussd(c, ussdSim) }
-                        code = ""
-                    }, enabled = online && !waitingUssd && (if (inMenu) code.isNotEmpty() else code.endsWith("#")),
-                        modifier = Modifier.weight(1f)) { Text(stringResource(if (inMenu) R.string.ussd_reply else R.string.send)) }
-                }
-                if (waitingUssd) { Spacer(Modifier.height(8.dp)); LinearProgressIndicator(Modifier.fillMaxWidth()) }
+            }
+            Tool.HOTSPOT -> {
+                // The hotspot radio: 5 GHz is several times faster at phone distance; 2.4 GHz reaches further.
+                Group(stringResource(R.string.hs_radio), listOf(
+                    {
+                        Column(Modifier.padding(16.dp)) {
+                            Text(stringResource(R.string.hs_band), style = MaterialTheme.typography.titleMedium)
+                            Muted(stringResource(R.string.hs_band_sub) + (if ((s?.apChannel ?: 0) > 0) " · " + stringResource(R.string.hs_channel, s!!.apChannel) else ""))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                                listOf(5 to "5 GHz", 2 to "2.4 GHz", 0 to stringResource(R.string.hs_auto)).forEach { (b, label) ->
+                                    FilterChip(s?.apBand == b, { guard { core.control.setHotspotBand(b) } }, enabled = online, label = { Text(label) })
+                                }
+                            }
+                        }
+                    },
+                    {
+                        GroupRow(null, stringResource(R.string.hs_offload), stringResource(R.string.hs_offload_sub), opens = false, trailing = {
+                            androidx.compose.material3.Switch(s?.offload != false, { on -> guard { core.control.setTetherOffload(on) } }, enabled = online)
+                        })
+                    },
+                ))
+                HotspotSmartCard(core, s, online)
+                LinkHealth(core, s)
+                PlacesSection(core, online)
+        if (s != null) Section(Icons.Filled.Devices, stringResource(R.string.dash_hotspot_clients, s.clients.size), Tint.Teal) {
+            if (!s.hotspot) Muted(stringResource(R.string.dash_hotspot_off))
+            else if (s.clients.isEmpty()) Muted(stringResource(R.string.dash_no_clients))
+            else s.clients.forEach { c ->
+                Text("${c.ip}  ·  …${c.mac}" + if (c.simbridge) "  ·  SimBridge" else "", style = MaterialTheme.typography.bodyMedium)
             }
         }
+
+            }
+            Tool.LOCATE -> {
+        Section(Icons.Filled.LocationOn, stringResource(R.string.dash_locate), Tint.Red) {
+            Muted(stringResource(R.string.dash_locate_sub))
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Button({ locating = core.control.locate() }, enabled = online && !locating) { Text(stringResource(R.string.dash_locate_now)) }
+                if (locating) { Spacer(Modifier.width(12.dp)); LinearProgressIndicator(Modifier.weight(1f)) }
+            }
+            loc?.let { l ->
+                Spacer(Modifier.height(8.dp))
+                if (!l.ok) Text(stringResource(R.string.dash_locate_failed), color = MaterialTheme.colorScheme.error)
+                else {
+                    OsmMap(l.lat, l.lon, l.accuracy)
+                    Spacer(Modifier.height(6.dp))
+                    Text("%.5f, %.5f  ±%.0f m".format(l.lat, l.lon, l.accuracy), style = MaterialTheme.typography.bodyLarge)
+                    TextButton({
+                        runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:${l.lat},${l.lon}?q=${l.lat},${l.lon}(SIM phone)"))) }
+                    }) { Text(stringResource(R.string.dash_open_map)) }
+                }
+            }
         }
+
+            }
+            Tool.SPEED -> SpeedTest(core, online)
+            Tool.CHECK -> DiagnosticsPage(core, s, online, onTool)
+            Tool.BATTERY -> {
+                NightModeCard(core, s, online)
+        // Samsung battery protection: stop charging at a level, for a phone that is always plugged in.
+        Section(Icons.Filled.BatteryChargingFull, stringResource(R.string.dash_charge_limit), Tint.Green) {
+            Muted(stringResource(R.string.dash_charge_limit_sub))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 6.dp)) {
+                listOf("off", "80", "85", "90", "95").forEach { v ->
+                    FilterChip(s?.chargeLimit == v, { guard { core.control.setChargeLimit(v) } }, enabled = online,
+                        label = { Text(if (v == "off") stringResource(R.string.off) else "$v %") })
+                }
+            }
+            ToggleRow(stringResource(R.string.dash_report), stringResource(R.string.dash_report_sub), s?.dailyReport, online, null) {
+                core.control.setDailyReport(it)
+            }
+        }
+            }
+            Tool.APPS -> AppNotifSection(core, online)
+            Tool.CALLS -> {
+        Section(Icons.Filled.Call, stringResource(R.string.dash_calls), Tint.Green) {
+            Muted(stringResource(R.string.dash_voicemail_sub))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 6.dp)) {
+                listOf(0, 15, 25, 40).forEach { sec ->
+                    FilterChip(s?.noAnswerSec == sec, { core.control.setNoAnswer(sec) }, enabled = online,
+                        label = { Text(if (sec == 0) stringResource(R.string.off) else "$sec s") })
+                }
+            }
+            // SimBridge's own voicemail and call screening, run by the SIM phone.
+            ToggleRow(stringResource(R.string.vm_title), stringResource(R.string.vm_sub), s?.vmOn, online, null) {
+                core.control.setMachine(voicemail = it)
+            }
+            Muted(stringResource(R.string.screen_sub))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 4.dp)) {
+                listOf(0 to R.string.off, 1 to R.string.screen_unknown, 2 to R.string.screen_hidden).forEach { (m, label) ->
+                    FilterChip(s?.screenMode == m, { core.control.setMachine(screen = m) }, enabled = online, label = { Text(stringResource(label)) })
+                }
+            }
+            var editPrompts by remember { mutableStateOf(false) }
+            TextButton({ editPrompts = true }, enabled = online && s != null) { Text(stringResource(R.string.vm_edit)) }
+            if (editPrompts && s != null) {
+                var g by remember { mutableStateOf(s.greeting) }
+                var q by remember { mutableStateOf(s.screenPrompt) }
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { editPrompts = false },
+                    title = { Text(stringResource(R.string.vm_edit)) },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            androidx.compose.material3.OutlinedTextField(g, { g = it.take(300) }, label = { Text(stringResource(R.string.vm_greeting)) })
+                            androidx.compose.material3.OutlinedTextField(q, { q = it.take(300) }, label = { Text(stringResource(R.string.screen_prompt)) })
+                        }
+                    },
+                    confirmButton = { TextButton({ core.control.setMachine(greeting = g, screenPrompt = q); editPrompts = false }) { Text(stringResource(R.string.save)) } },
+                    dismissButton = { TextButton({ editPrompts = false }) { Text(stringResource(R.string.cancel)) } },
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Text(stringResource(R.string.dash_audio_test), style = MaterialTheme.typography.bodyLarge)
+            Muted(stringResource(R.string.dash_audio_test_sub))
+            var testNumber by remember(s?.voicemail) { mutableStateOf(s?.voicemail.orEmpty()) }
+            val test by core.control.audioTest.collectAsState()
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(testNumber, { v -> testNumber = v.filter { it.isDigit() || it in "+*#" } }, singleLine = true,
+                    label = { Text(stringResource(R.string.dash_test_number)) }, modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
+                Spacer(Modifier.width(8.dp))
+                Button({ core.control.runAudioTest(testNumber) }, enabled = online && testNumber.length >= 3 && test != "…") {
+                    Text(stringResource(R.string.dash_run_test))
+                }
+            }
+            test?.let { t ->
+                Spacer(Modifier.height(8.dp))
+                if (t == "…") LinearProgressIndicator(Modifier.fillMaxWidth()) else {
+                    Text(t, style = MaterialTheme.typography.bodyMedium)
+                    TextButton({
+                        val body = Uri.encode("Phone: ${s?.model}\nAndroid: ${s?.androidVersion}\nGateway: ${s?.version}\nResult: $t\n")
+                        runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW,
+                            Uri.parse("https://github.com/ttabouch12/simbridge/issues/new?labels=compatibility&title=" +
+                                Uri.encode("Compatibility: ${s?.model}") + "&body=$body"))) }
+                    }) { Text(stringResource(R.string.dash_share_result)) }
+                }
+            }
+        }
+
+            }
         }
     }
     confirm?.let { (action, on) ->
@@ -416,7 +454,8 @@ private fun Hero(s: GatewayStatus?, online: Boolean, detail: String) {
     val screenTop = MaterialTheme.colorScheme.primaryContainer
     val screenBottom = MaterialTheme.colorScheme.tertiaryContainer
     val off = MaterialTheme.colorScheme.outlineVariant
-    ElevatedCard(Modifier.fillMaxWidth()) {
+    androidx.compose.material3.Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(width = 96.dp, height = 180.dp), contentAlignment = Alignment.Center) {
                 Canvas(Modifier.fillMaxSize()) {
@@ -457,11 +496,8 @@ private fun Hero(s: GatewayStatus?, online: Boolean, detail: String) {
                 val mins = if (s?.charging == true) s.chargeMin else s?.batteryMin
                 if (mins != null) Muted(stringResource(if (s?.charging == true) R.string.dash_full_in else R.string.dash_time_left, duration(mins)))
                 Spacer(Modifier.height(10.dp))
-                Box(Modifier.background(if (online) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.errorContainer,
-                    RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 4.dp)) {
-                    Text(if (online) stringResource(R.string.dash_connected) else detail.ifBlank { stringResource(R.string.dash_offline) },
-                        style = MaterialTheme.typography.labelMedium)
-                }
+                StatusPill(if (online) stringResource(R.string.dash_connected) else detail.ifBlank { stringResource(R.string.dash_offline) },
+                    if (online) Status.ok() else Status.bad())
                 if (s != null) { Spacer(Modifier.height(6.dp)); Muted(stringResource(R.string.dash_uptime, uptime(s.uptimeMin))) }
             }
         }
@@ -528,10 +564,12 @@ internal fun Spinner(color: Color = MaterialTheme.colorScheme.primary) =
 
 @Composable
 internal fun Section(icon: ImageVector, title: String, tint: Color = Tint.Blue, content: @Composable () -> Unit) {
-    ElevatedCard(Modifier.fillMaxWidth()) {
+    // A flat, rounded panel in the surface tone: same look as the grouped lists (see Design.kt).
+    androidx.compose.material3.Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(36.dp).background(tint.copy(alpha = 0.15f), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(36.dp).background(tint.copy(alpha = 0.15f), androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
                     Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
                 }
                 Spacer(Modifier.width(12.dp))
@@ -629,3 +667,6 @@ internal fun duration(minutes: Int): String = when {
     minutes >= 60 -> "${minutes / 60} h ${minutes % 60} min"
     else -> "$minutes min"
 }
+
+@Composable
+private fun onOff(on: Boolean?): String = stringResource(if (on == true) R.string.on else R.string.off)

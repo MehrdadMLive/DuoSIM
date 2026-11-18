@@ -45,8 +45,10 @@ object Places {
         val here = currentSsid(ctx)
         if (places.any { it.ssid == here }) return                 // already on a place's Wi-Fi
         if (System.currentTimeMillis() - lastAsk < 3 * 60_000) return
+        // Never during a call, and never a forced scan: a scan takes the radio off the hotspot's
+        // channel for seconds (voice gaps, slow internet). The system's own scans are enough.
+        if (ActiveCall.current != null) return
         val wm = ctx.getSystemService(WifiManager::class.java) ?: return
-        @Suppress("DEPRECATION") runCatching { wm.startScan() }
         val seen = runCatching { wm.scanResults.map { it.SSID } }.getOrDefault(emptyList()).toSet()
         val p = places.firstOrNull { it.ssid in seen } ?: return
         lastAsk = System.currentTimeMillis()

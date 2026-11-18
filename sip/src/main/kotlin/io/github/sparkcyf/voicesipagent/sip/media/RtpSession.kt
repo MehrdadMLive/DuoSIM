@@ -62,6 +62,8 @@ class RtpSession(
 
     val localPort: Int get() = socket.localPort
     val jitterUnderruns: Long get() = jitter.underruns
+    /** Late or surplus audio dropped to keep the delay down. */
+    val jitterDropped: Long get() = jitter.dropped
 
     fun start() {
         lastReceiveAtMs = System.currentTimeMillis()

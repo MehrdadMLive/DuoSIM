@@ -1,6 +1,10 @@
 package io.github.simbridge.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.material.icons.outlined.AddReaction
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.foundation.horizontalScroll
@@ -116,6 +120,7 @@ fun ChatScreen(core: LinkCore, key: String, address: String, initialDraft: Strin
     // Long-press a bubble to select it; then tap others (copy, star, forward, details, delete).
     var picked by remember(key) { mutableStateOf(emptySet<Long>()) }
     var details by remember { mutableStateOf<Msg?>(null) }
+    var react by remember { mutableStateOf<Msg?>(null) }
     var find by remember(key) { mutableStateOf<String?>(null) }
     var scheduleAsk by remember { mutableStateOf(false) }
     var pending by remember(key) { mutableStateOf(emptyList<io.github.simbridge.Attachment>()) }
@@ -154,6 +159,8 @@ fun ChatScreen(core: LinkCore, key: String, address: String, initialDraft: Strin
                     actions = {
                         IconButton({ copy(ctx, sel.joinToString("\n") { it.body }); picked = emptySet() }) {
                             Icon(Icons.Filled.ContentCopy, stringResource(R.string.copy)) }
+                        if (sel.size == 1 && !sel.first().outgoing) IconButton({ react = sel.first() }) {
+                            Icon(Icons.Outlined.AddReaction, stringResource(R.string.react)) }
                         IconButton({ core.store.setStarred(picked, !sel.all { it.starred }); picked = emptySet() }) {
                             Icon(if (sel.all { it.starred }) Icons.Filled.Star else Icons.Outlined.StarBorder, stringResource(R.string.act_star)) }
                         IconButton({
@@ -223,7 +230,7 @@ fun ChatScreen(core: LinkCore, key: String, address: String, initialDraft: Strin
                 pending = pending, onAttach = {
                     picker.launch(androidx.activity.result.PickVisualMediaRequest(
                         androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
-                }, onRemove = { a -> pending = pending - a }) {
+                }, onRemove = { a -> pending = pending - a }, onVoice = { a -> pending = pending + a }) {
                 val text = draft.trim()
                 when {
                     pending.isNotEmpty() -> { core.sendMms(address, text, pending); pending = emptyList(); draft = "" }
@@ -260,6 +267,21 @@ fun ChatScreen(core: LinkCore, key: String, address: String, initialDraft: Strin
         }
     }
     details?.let { m -> DetailsDialog(m) { details = null } }
+    // A reaction goes as a short text quoting the message, which every phone can show.
+    react?.let { m ->
+        AlertDialog(onDismissRequest = { react = null }, title = { Text(stringResource(R.string.react)) },
+            text = {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf("👍", "❤️", "😂", "😮", "😢", "🙏").forEach { e ->
+                        TextButton({
+                            core.sendText(address, "$e “" + m.body.take(60) + (if (m.body.length > 60) "…" else "") + "”")
+                            react = null; picked = emptySet()
+                        }) { Text(e, style = MaterialTheme.typography.headlineSmall) }
+                    }
+                }
+            },
+            confirmButton = {}, dismissButton = { TextButton({ react = null }) { Text(stringResource(R.string.cancel)) } })
+    }
     if (scheduleAsk) ScheduleDialog(onPick = { t ->
         core.store.schedule(address, draft.trim(), t, core.simFor(address)); draft = ""; scheduleAsk = false
     }, onDismiss = { scheduleAsk = false })
@@ -401,8 +423,10 @@ private fun Bubble(item: Item.Bubble, core: LinkCore, group: Boolean, selected: 
 @Composable
 private fun Composer(text: String, onText: (String) -> Unit, connected: Boolean, onSchedule: () -> Unit,
                      pending: List<io.github.simbridge.Attachment>, onAttach: () -> Unit,
-                     onRemove: (io.github.simbridge.Attachment) -> Unit, onSend: () -> Unit) {
+                     onRemove: (io.github.simbridge.Attachment) -> Unit, onVoice: (io.github.simbridge.Attachment) -> Unit,
+                     onSend: () -> Unit) {
     val ctx = LocalContext.current
+    var recording by remember { mutableStateOf<io.github.simbridge.VoiceNote?>(null) }
     Surface(color = MaterialTheme.colorScheme.surface) {
       Column(Modifier.fillMaxWidth().navigationBarsPadding().imePadding()) {
         if (pending.isNotEmpty()) Row(Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -411,6 +435,8 @@ private fun Composer(text: String, onText: (String) -> Unit, connected: Boolean,
                     val bmp = remember(a) { io.github.simbridge.Mms.thumbnail(ctx, a, 160)?.asImageBitmap() }
                     if (bmp != null) androidx.compose.foundation.Image(bmp, null, Modifier.size(72.dp).clip(RoundedCornerShape(12.dp)),
                         contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                    else androidx.compose.material3.AssistChip({}, label = { Text(a.name) }, leadingIcon = { Icon(Icons.Filled.Mic, null) },
+                        modifier = Modifier.padding(top = 8.dp, end = 12.dp))
                     androidx.compose.material3.SmallFloatingActionButton({ onRemove(a) }, Modifier.align(Alignment.TopEnd).size(24.dp)) {
                         Icon(Icons.Filled.Close, stringResource(R.string.remove), Modifier.size(14.dp))
                     }
@@ -433,9 +459,22 @@ private fun Composer(text: String, onText: (String) -> Unit, connected: Boolean,
                     focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent),
                 modifier = Modifier.weight(1f),
             )
-            // Tap sends; hold to choose a later time.
+            // Tap sends; hold to choose a later time. With nothing typed it is a mic: hold to record a voice note.
             val canSend = text.isNotBlank() || pending.isNotEmpty()
-            Box(Modifier.size(56.dp).clip(androidx.compose.foundation.shape.CircleShape)
+            if (!canSend) Box(Modifier.size(56.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                .background(if (recording != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primaryContainer)
+                .pointerInput(Unit) {
+                    detectTapGestures(onPress = {
+                        val r = io.github.simbridge.VoiceNote.start(ctx) ?: return@detectTapGestures
+                        recording = r
+                        tryAwaitRelease()
+                        recording = null
+                        r.stop(ctx)?.let(onVoice)
+                    })
+                }, contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Mic, stringResource(R.string.voice_hold),
+                    tint = if (recording != null) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimaryContainer)
+            } else Box(Modifier.size(56.dp).clip(androidx.compose.foundation.shape.CircleShape)
                 .background(if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest)
                 .combinedClickable(enabled = canSend, onClick = onSend, onLongClick = onSchedule), contentAlignment = Alignment.Center) {
                 Icon(Icons.AutoMirrored.Filled.Send, stringResource(R.string.send),

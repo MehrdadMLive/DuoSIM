@@ -27,7 +27,7 @@ import org.json.JSONObject
  * persistent queue while no phone is registered.
  */
 /** Control operations that change something on this phone; each is written to the [Audit] log. */
-private val AUDITED = setOf("machine", "control", "ussd", "ussd-reply", "screen-start", "network-mode", "apn-select", "apn-add", "sms-app",
+private val AUDITED = setOf("hotspot-band", "tether-offload", "machine", "control", "ussd", "ussd-reply", "screen-start", "network-mode", "apn-select", "apn-add", "sms-app",
     "at-place", "charge-limit", "locate", "block-rules", "voicemail")
 
 /** Who changed what on this phone, and when (the last 200 entries). */
@@ -74,6 +74,24 @@ class GatewayControl(private val app: Context, private val rt: GatewayRuntime) {
                 prompts.prepare(greeting); prompts.prepare(screenPrompt)
                 send(status(), from)
             }
+            "hotspot-band" -> rt.worker {
+                privileged("softap-band", o.optInt("band", 5).toString())
+                // Restart a running hotspot so the new band is used now.
+                if (hotspotOn()) { privilegedRaw("hotspot", "off"); Thread.sleep(1500); privilegedRaw("hotspot", "on") }
+                send(status(), from)
+            }
+            "tether-offload" -> rt.worker { privileged("tether-offload", if (o.optBoolean("on")) "on" else "off"); send(status(), from) }
+            // This phone's own internet speed (for comparing with the main phone's, through the hotspot).
+            "speed-net" -> rt.worker { send(JSONObject().put("op", "speed-net").put("mbps", ownDownloadMbps()), from) }
+            "smart-hotspot" -> { prefs.edit().putBoolean("smart_hotspot", o.optBoolean("on")).apply(); send(status(), from) }
+            "night" -> {
+                prefs.edit().putBoolean("night_on", o.optBoolean("on")).putInt("night_start", o.optInt("start", 60))
+                    .putInt("night_end", o.optInt("end", 420)).putBoolean("night_data", o.optBoolean("data", true))
+                    .putBoolean("night_saver", o.optBoolean("saver", true)).apply()
+                send(status(), from)
+            }
+            "data-limit" -> { prefs.edit().putFloat("data_limit_gb", o.optDouble("gb", 0.0).toFloat()).putInt("data_warned", 0).apply(); send(status(), from) }
+            "proxy" -> { prefs.edit().putBoolean("proxy_on", o.optBoolean("on")).apply(); applyProxy(); send(status(), from) }
             "audit" -> send(JSONObject().put("op", "audit").put("list", Audit.recent(app)), from)
             "charge-limit" -> rt.worker {
                 privileged("charge-limit", o.optString("value", "off"))
@@ -263,8 +281,19 @@ class GatewayControl(private val app: Context, private val rt: GatewayRuntime) {
         o.put("uptimeMin", SystemClock.elapsedRealtime() / 60_000)
         o.put("version", runCatching { app.packageManager.getPackageInfo(app.packageName, 0).versionName }.getOrNull() ?: "")
         o.put("hotspot", hotspotOn())
+        privilegedRaw("softap-info", "").takeUnless { it.startsWith("error") }?.split(',')?.let {
+            o.put("apBand", it[0].toIntOrNull() ?: 0).put("apChannel", it.getOrNull(1)?.toIntOrNull() ?: 0)
+        }
+        o.put("offload", privilegedRaw("tether-offload-get", "") != "off")
         privilegedRaw("charge-limit-get", "").takeUnless { it.startsWith("error") }?.let { o.put("chargeLimit", it) }
         o.put("dailyReport", prefs.getBoolean("daily_report", true))
+        o.put("smartHotspot", prefs.getBoolean("smart_hotspot", false))
+        o.put("night", JSONObject().put("on", prefs.getBoolean("night_on", false)).put("start", prefs.getInt("night_start", 60))
+            .put("end", prefs.getInt("night_end", 420)).put("data", prefs.getBoolean("night_data", true)).put("saver", prefs.getBoolean("night_saver", true)))
+        o.put("dataLimitGb", prefs.getFloat("data_limit_gb", 0f).toDouble())
+        o.put("proxy", HttpProxy.running).put("proxyPort", HttpProxy.PORT)
+        o.put("phones", JSONArray(rt.sipAgent?.phoneAddresses ?: emptyList<String>()))
+        ownWifi()?.let { o.put("wifi", it) }
         o.put("vmOn", voicemailOn).put("screenMode", screenMode).put("greeting", greeting).put("screenPrompt", screenPrompt)
         o.put("smsApp", MmsGateway.isDefaultSmsApp(app))
         o.put("noAnswerSec", noAnswerSec)
@@ -555,8 +584,82 @@ class GatewayControl(private val app: Context, private val rt: GatewayRuntime) {
             .put("wav", android.util.Base64.encodeToString(Wav.encode(audio, rate), android.util.Base64.NO_WRAP)))
     }
 
+    // ------------------------------------------------------------ smart hotspot, night mode, data limit
+
+    private fun applyProxy() {
+        HttpProxy.allowed = { ip -> ip.startsWith("10.") || ip.startsWith("192.168.") || ip.startsWith("172.") }
+        if (prefs.getBoolean("proxy_on", false)) HttpProxy.start() else HttpProxy.stop()
+    }
+
+    /** This phone's Wi-Fi when it is a client (home Wi-Fi): name, band, link speeds, signal. */
+    private fun ownWifi(): JSONObject? = runCatching {
+        val wm = app.getSystemService(android.net.wifi.WifiManager::class.java)
+        @Suppress("DEPRECATION") val i = wm.connectionInfo ?: return null
+        if (i.networkId == -1 && i.rssi <= -127) return null
+        JSONObject().put("ssid", i.ssid.trim('"')).put("freq", i.frequency).put("rssi", i.rssi)
+            .put("tx", i.txLinkSpeedMbps).put("rx", i.rxLinkSpeedMbps)
+    }.getOrNull()
+
+    private fun ownDownloadMbps(): Double = runCatching {
+        val c = java.net.URL("https://speed.cloudflare.com/__down?bytes=25000000").openConnection() as java.net.HttpURLConnection
+        c.connectTimeout = 8000; c.readTimeout = 15_000
+        val buf = ByteArray(64 * 1024); var got = 0L
+        val t0 = System.nanoTime()
+        c.inputStream.use { s -> while (System.nanoTime() - t0 < 8_000_000_000L) { val n = s.read(buf); if (n < 0) break; got += n } }
+        c.disconnect()
+        got * 8.0 / ((System.nanoTime() - t0) / 1e9) / 1e6
+    }.getOrDefault(0.0)
+
+    private var noClientsSince = 0L
+    private var nightApplied = false
+
+    /** Every minute: hotspot only when needed, night mode, the monthly data limit. */
+    private fun housekeeping() {
+        // Smart hotspot: off when the main phones reach us some other way and nobody uses it.
+        if (prefs.getBoolean("smart_hotspot", false) && hotspotOn()) {
+            val phones = rt.sipAgent?.phoneAddresses.orEmpty()
+            val viaOther = phones.isNotEmpty() && phones.none { it.startsWith("10.") }
+            val clients = hotspotClients().length()
+            if (viaOther && clients == 0) {
+                if (noClientsSince == 0L) noClientsSince = System.currentTimeMillis()
+                if (System.currentTimeMillis() - noClientsSince > 10 * 60_000) {
+                    AppLog.i("smart hotspot: not needed, turning it off"); privileged("hotspot", "off"); noClientsSince = 0
+                }
+            } else noClientsSince = 0
+        } else if (prefs.getBoolean("smart_hotspot", false)) hotspotIfNoWifi("smart hotspot")
+        // Night mode: data off and/or battery saver between two times.
+        if (prefs.getBoolean("night_on", false)) {
+            val c = java.util.Calendar.getInstance()
+            val m = c.get(java.util.Calendar.HOUR_OF_DAY) * 60 + c.get(java.util.Calendar.MINUTE)
+            val s = prefs.getInt("night_start", 60); val e = prefs.getInt("night_end", 420)
+            val night = if (s <= e) m in s until e else m >= s || m < e
+            if (night != nightApplied) {
+                nightApplied = night
+                AppLog.i("night mode ${if (night) "starts" else "ends"}")
+                if (prefs.getBoolean("night_data", true)) privileged("mobile-data", if (night) "off" else "on")
+                if (prefs.getBoolean("night_saver", true)) rt.setCompanionPower(night)
+            }
+        }
+        // Data limit: a text at 80 % and at 100 % of the month.
+        val limit = prefs.getFloat("data_limit_gb", 0f)
+        if (limit > 0) dataUsage()?.let { (_, month) ->
+            val pct = (month / (limit * 1e9) * 100).toInt()
+            val warned = prefs.getInt("data_warned", 0)
+            val month0 = prefs.getInt("data_warned_month", -1); val nowMonth = java.util.Calendar.getInstance().get(java.util.Calendar.MONTH)
+            if (month0 != nowMonth) prefs.edit().putInt("data_warned", 0).putInt("data_warned_month", nowMonth).apply()
+            if (pct >= 100 && warned < 100) { prefs.edit().putInt("data_warned", 100).apply(); rt.alerts.post("📶 Mobile data limit reached: ${"%.1f".format(month / 1e9)} GB of $limit GB this month.") }
+            else if (pct >= 80 && warned < 80) { prefs.edit().putInt("data_warned", 80).apply(); rt.alerts.post("📶 80 % of your mobile data limit used: ${"%.1f".format(month / 1e9)} GB of $limit GB.") }
+        }
+    }
+
+    private fun loop() {
+        main.postDelayed({ rt.worker { runCatching { housekeeping() }.onFailure { AppLog.w("housekeeping: ${it.message}") }; loop() } }, 60_000)
+    }
+
     /** Called once when the gateway starts. */
     fun start() {
+        applyProxy()
+        loop()
         prompts.prepare(greeting); prompts.prepare(screenPrompt)
         scheduleReport()
         if (prefs.getBoolean("crashed", false)) {

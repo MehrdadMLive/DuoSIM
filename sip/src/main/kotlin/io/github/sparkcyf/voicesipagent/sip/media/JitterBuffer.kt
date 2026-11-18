@@ -10,7 +10,7 @@ import java.util.TreeMap
  */
 class JitterBuffer(
     private val targetFrames: Int = 3,
-    private val maxFrames: Int = 10,
+    private val maxFrames: Int = 8,
     private val frameSamples: Int = VoiceFormat.FRAME_SAMPLES,
 ) {
     private val frame = frameSamples.toLong()
@@ -19,6 +19,7 @@ class JitterBuffer(
     private var playTs = -1L
     private var playing = false
     private var emptyReads = 0
+    private var highFor = 0
 
     var underruns = 0L
         private set
@@ -58,10 +59,16 @@ class JitterBuffer(
             playing = true
             playTs = packets.firstKey()
         }
-        if (end - playTs > maxFrames * frame) {
+        val backlog = (end - playTs) / frame
+        if (backlog > maxFrames) {
             playTs = end - targetFrames * frame
             dropped++
-        }
+            highFor = 0
+        } else if (backlog > targetFrames + 2) {
+            // Delay that crept in (a Wi-Fi burst, a sender clock a bit fast) is played off quietly:
+            // after a second of extra backlog, skip one frame. Keeps calls near the target delay.
+            if (++highFor >= 50) { playTs += frame; dropped++; highFor = 0 }
+        } else highFor = 0
         var got = false
         for (i in 0 until frameSamples) {
             val p = playTs + i

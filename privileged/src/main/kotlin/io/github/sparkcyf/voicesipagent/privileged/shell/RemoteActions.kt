@@ -42,6 +42,15 @@ internal object RemoteActions {
             }
             r
         }
+        // Hotspot radio: "band" = 2 (2.4 GHz), 5 (5 GHz) or 0 (both / let the phone pick); answer "band,channel".
+        "softap-info" -> softApInfo(ctx)
+        "softap-band" -> setSoftApBand(ctx, arg.toInt())
+        // Tethering hardware offload: on some chips it stalls the hotspot until a reboot.
+        "tether-offload" -> {
+            ShellEnv.run("settings", "put", "global", "tether_offload_disabled", if (arg == "off") "1" else "0")
+            "ok"
+        }
+        "tether-offload-get" -> if (ShellEnv.run("settings", "get", "global", "tether_offload_disabled").out.trim() == "1") "off" else "on"
         "notif-access" -> {
             require(Regex("[a-z0-9._]+/[A-Za-z0-9._]+").matches(arg)) { "bad component" }
             val r = ShellEnv.run("cmd", "notification", "allow_listener", arg)
@@ -270,4 +279,32 @@ internal object RemoteActions {
             .getDeclaredConstructor(Context::class.java, java.util.function.Supplier::class.java).apply { isAccessible = true }
         return ctor.newInstance(shellCtx, java.util.function.Supplier { getService.invoke(null, "tethering") as android.os.IBinder })
     }
+
+    private fun wifi(ctx: Context) = ctx.getSystemService(android.net.wifi.WifiManager::class.java)
+
+    private fun softApConfig(ctx: Context): Any = wifi(ctx).javaClass.getMethod("getSoftApConfiguration").invoke(wifi(ctx))!!
+
+    /** SoftApConfiguration band bits: 1 = 2.4 GHz, 2 = 5 GHz, 4 = 6 GHz. */
+    private fun softApInfo(ctx: Context): String = runCatching {
+        val c = softApConfig(ctx)
+        val band = c.javaClass.getMethod("getBand").invoke(c) as Int
+        val ch = runCatching { c.javaClass.getMethod("getChannel").invoke(c) as Int }.getOrDefault(0)
+        val label = when {
+            band and 2 != 0 && band and 1 != 0 -> 0
+            band and 2 != 0 -> 5
+            else -> 2
+        }
+        "$label,$ch"
+    }.getOrElse { "error: ${it.message}" }
+
+    private fun setSoftApBand(ctx: Context, want: Int): String = runCatching {
+        val c = softApConfig(ctx)
+        val bits = when (want) { 5 -> 2; 2 -> 1; else -> 3 }
+        val b = Class.forName("android.net.wifi.SoftApConfiguration\$Builder")
+            .getConstructor(c.javaClass).newInstance(c)
+        b.javaClass.getMethod("setBand", Int::class.javaPrimitiveType).invoke(b, bits)
+        val cfg = b.javaClass.getMethod("build").invoke(b)
+        val ok = wifi(ctx).javaClass.getMethod("setSoftApConfiguration", cfg.javaClass).invoke(wifi(ctx), cfg) as Boolean
+        if (ok) "ok (applies when the hotspot next starts)" else "error: the phone refused the change"
+    }.getOrElse { "error: ${(it.cause ?: it).message}" }
 }
