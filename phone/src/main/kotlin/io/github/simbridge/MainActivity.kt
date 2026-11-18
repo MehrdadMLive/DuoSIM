@@ -14,7 +14,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.plus
 import androidx.compose.animation.togetherWith
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -66,7 +65,7 @@ class MainActivity : ComponentActivity() {
                     val s by screen
                     val home = { t: Int -> lastTab = t; screen.value = Screen.Home(t) }
                     // Back: deeper pages go up one level; on the home, other places go back to the SIM phone.
-                    BackHandler(enabled = s !is Screen.Home || s.tab != io.github.simbridge.ui.Tabs.SIM) {
+                    BackHandler(enabled = (s as? Screen.Home)?.tab != io.github.simbridge.ui.Tabs.SIM) {
                         screen.value = when (s) {
                             Screen.Blocked -> Screen.Home(io.github.simbridge.ui.Tabs.CALLS)
                             Screen.Recordings -> Screen.Settings(1)
