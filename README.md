@@ -34,9 +34,13 @@ languages, free cloud engines or fully on-device.
 [Disclaimer](DISCLAIMER.md)
 
 <p align="center">
-  <img src="docs/images/simbridge-gateway.png" width="280" alt="SimBridge Gateway on the SIM phone">
-  &nbsp;&nbsp;
-  <img src="docs/images/simbridge-settings.png" width="280" alt="SimBridge settings on the main phone">
+  <img src="docs/images/simbridge-sim-phone.png" width="200" alt="SIM phone page: status, quick tiles and tools">
+  <img src="docs/images/simbridge-check.png" width="200" alt="Check everything: what is wrong and how to fix it">
+  <img src="docs/images/simbridge-calls.png" width="200" alt="Calls: voicemail, translation, quiet hours and recent calls">
+  <img src="docs/images/simbridge-settings-hub.png" width="200" alt="Settings: connection, calls, messages and app">
+</p>
+<p align="center">
+  <img src="docs/images/simbridge-gateway.png" width="200" alt="SimBridge Gateway on the SIM phone">
 </p>
 
 ---
@@ -356,6 +360,7 @@ call's audio and text: tell the caller where the law requires it.
 |---|---|
 | Main phone says *Looking for your SIM phone…* | Both phones on the same Wi-Fi (or main phone on the hotspot)? Is SimBridge Gateway open, with **Forward calls & texts** on? Some routers block mDNS or isolate devices: use the hotspot, or turn off "AP/client isolation". |
 | *The SIM phone rejected this phone* / *key changed* | Scan the SIM phone's code again (*Pair a phone*). This is expected after *New key* on the SIM phone. After 5 wrong tries the gateway ignores that device for 10 minutes. |
+| **Hotspot is very slow** or stops until both phones restart | On the SIM phone open *Hotspot → Advanced* and turn off **Wi-Fi 6**. Some Samsung hotspots leave a Pixel's send rate stuck at a few Mbps on Wi-Fi 6 even with a strong signal. *Check everything* in SimBridge spots this. If it is still slow, compare *SIM phone's own internet* in the speed test: if that is much faster, your carrier slows tethering, so try *Carrier-friendly sharing*. |
 | *Your microphone is off for this call* | Tap the notification once. It happens on the first call after the main phone restarted or SimBridge was updated. |
 | Picture messages don't arrive | Make SimBridge Gateway the SIM phone's SMS app (*Picture & group messages*) and keep mobile data on. |
 | Missed calls don't appear in the Phone app | Allow SimBridge's *call log* permission (Android settings → Apps → SimBridge → Permissions). |

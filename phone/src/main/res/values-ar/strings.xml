@@ -452,4 +452,5 @@
     <string name="react">تفاعل</string>
     <string name="chk_wifi6">Wi-Fi 6 على نقطة الاتصال</string>
     <string name="chk_wifi6_fix">الإشارة قوية لكن هذا الهاتف بالكاد يرسل. على هاتف SIM افتح نقطة الاتصال، خيارات متقدمة وأوقف Wi-Fi 6.</string>
+    <string name="hs_title">نقطة الاتصال</string>
 </resources>

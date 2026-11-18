@@ -90,7 +90,11 @@ fun LastCallCard(core: LinkCore) {
     })
 }
 
-private data class Check(val ok: Boolean?, val title: String, val detail: String, val fix: (() -> Unit)? = null, val fixLabel: String? = null)
+private data class Check(
+    val ok: Boolean?, val title: String, val detail: String, val fix: (() -> Unit)? = null, val fixLabel: String? = null,
+    /** The detail only says how to fix it, so it is hidden once the check passes. */
+    val fixText: Boolean = fixLabel != null,
+)
 
 /** "What's wrong?": every check that matters, each with what to do about it. */
 @Composable
@@ -117,7 +121,7 @@ fun DiagnosticsPage(core: LinkCore, s: GatewayStatus?, online: Boolean, onTool: 
             Check(perm(android.Manifest.permission.RECORD_AUDIO) && perm(android.Manifest.permission.POST_NOTIFICATIONS), ctx.getString(R.string.chk_perms),
                 ctx.getString(R.string.chk_perms_fix),
                 open(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:" + ctx.packageName))), ctx.getString(R.string.chk_open)),
-            Check(isDefaultSmsApp(ctx), ctx.getString(R.string.chk_sms), ctx.getString(R.string.chk_sms_fix)),
+            Check(isDefaultSmsApp(ctx).takeIf { it }, ctx.getString(R.string.chk_sms), ctx.getString(R.string.chk_sms_fix), fixText = true),
             if (s == null) Check(false, ctx.getString(R.string.chk_sim_phone), ctx.getString(R.string.dash_waiting)) else null,
             s?.let { st ->
                 val low = (st.battery ?: 100) < 20 && !st.charging
@@ -144,7 +148,7 @@ fun DiagnosticsPage(core: LinkCore, s: GatewayStatus?, online: Boolean, onTool: 
         {
             GroupRow(
                 when (c.ok) { true -> Icons.Filled.CheckCircle; false -> Icons.Filled.Error; null -> Icons.Filled.Warning },
-                c.title, c.detail,
+                c.title, c.detail.takeUnless { c.ok == true && c.fixText },
                 when (c.ok) { true -> Status.ok(); false -> Status.bad(); null -> Status.warn() },
                 opens = false,
                 trailing = if (c.ok == false && c.fix != null) ({ TextButton(c.fix) { Text(c.fixLabel ?: "") } }) else null,

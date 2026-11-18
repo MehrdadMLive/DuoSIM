@@ -461,7 +461,7 @@
     <string name="chk_band_ok">Fine</string>
     <string name="chk_data_fix">Mobile data is off: no internet through the SIM phone.</string>
     <string name="chk_all_good">All good</string>
-    <string name="chk_some">%1$d things to look at</string>
+    <string name="chk_some">Needs a look: %1$d</string>
     <string name="chk_offline">The SIM phone is offline, so its checks are from the last update.</string>
     <string name="night_title">Night mode</string>
     <string name="night_on">Night mode</string>
@@ -488,4 +488,5 @@
     <string name="react">React</string>
     <string name="chk_wifi6">Wi-Fi 6 on the hotspot</string>
     <string name="chk_wifi6_fix">Strong signal but this phone can barely send. On the SIM phone open Hotspot, Advanced and turn off Wi-Fi 6.</string>
+    <string name="hs_title">Hotspot</string>
 </resources>

@@ -487,4 +487,5 @@
     <string name="react">Tepki ver</string>
     <string name="chk_wifi6">Hotspot\'ta Wi-Fi 6</string>
     <string name="chk_wifi6_fix">Sinyal güçlü ama bu telefon neredeyse veri gönderemiyor. SIM telefonda Hotspot, Gelişmiş\'i açıp Wi-Fi 6\'yı kapatın.</string>
+    <string name="hs_title">Hotspot</string>
 </resources>

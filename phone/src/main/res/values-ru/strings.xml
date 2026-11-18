@@ -452,4 +452,5 @@
     <string name="react">Реакция</string>
     <string name="chk_wifi6">Wi-Fi 6 на точке доступа</string>
     <string name="chk_wifi6_fix">Сигнал сильный, но этот телефон почти не может отправлять. На SIM-телефоне откройте Точка доступа, Дополнительно и выключите Wi-Fi 6.</string>
+    <string name="hs_title">Точка доступа</string>
 </resources>

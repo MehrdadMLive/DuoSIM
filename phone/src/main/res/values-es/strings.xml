@@ -425,7 +425,7 @@
     <string name="chk_band_ok">Bien</string>
     <string name="chk_data_fix">Datos móviles apagados: sin Internet a través del teléfono SIM.</string>
     <string name="chk_all_good">Todo bien</string>
-    <string name="chk_some">%1$d cosas que revisar</string>
+    <string name="chk_some">Por revisar: %1$d</string>
     <string name="chk_offline">El teléfono SIM está desconectado: sus datos son de la última actualización.</string>
     <string name="night_title">Modo noche</string>
     <string name="night_on">Modo noche</string>
@@ -452,4 +452,5 @@
     <string name="react">Reaccionar</string>
     <string name="chk_wifi6">Wi-Fi 6 en el punto de acceso</string>
     <string name="chk_wifi6_fix">Buena señal, pero este teléfono apenas puede enviar. En el teléfono SIM abre Punto de acceso, Avanzado y desactiva Wi-Fi 6.</string>
+    <string name="hs_title">Punto de acceso</string>
 </resources>

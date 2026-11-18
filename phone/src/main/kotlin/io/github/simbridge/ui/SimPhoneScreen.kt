@@ -144,7 +144,7 @@ fun SimPhoneScreen(core: LinkCore, tool: Tool? = null, onTool: (Tool?) -> Unit =
             { m -> Tile(Icons.Filled.SignalCellularAlt, stringResource(R.string.dash_mobile_data), onOff(pending["mobile-data"] as Boolean? ?: s?.dataOn),
                 pending["mobile-data"] as Boolean? ?: s?.dataOn == true, m, busy = pending.containsKey("mobile-data"), enabled = online,
                 onLongClick = { onTool(Tool.DATA) }) { confirm = "mobile-data" to (s?.dataOn != true) } },
-            { m -> Tile(Icons.Filled.WifiTethering, stringResource(R.string.dash_hotspot),
+            { m -> Tile(Icons.Filled.WifiTethering, stringResource(R.string.hs_title),
                 if (s?.hotspot == true) stringResource(R.string.home_clients, s.clients.size) else onOff(false),
                 pending["hotspot"] as Boolean? ?: s?.hotspot == true, m, busy = pending.containsKey("hotspot"), enabled = online,
                 onLongClick = { onTool(Tool.HOTSPOT) }) { confirm = "hotspot" to (s?.hotspot != true) } },

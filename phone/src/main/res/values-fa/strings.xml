@@ -452,4 +452,5 @@
     <string name="react">واکنش</string>
     <string name="chk_wifi6">وای‌فای ۶ روی هات‌اسپات</string>
     <string name="chk_wifi6_fix">آنتن قوی است اما این گوشی به‌سختی ارسال می‌کند. در گوشی سیم‌کارت هات‌اسپات، پیشرفته را باز کنید و وای‌فای ۶ را خاموش کنید.</string>
+    <string name="hs_title">هات‌اسپات</string>
 </resources>

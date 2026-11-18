@@ -425,7 +425,7 @@
     <string name="chk_band_ok">Correct</string>
     <string name="chk_data_fix">Données mobiles coupées : pas d\'Internet via le téléphone SIM.</string>
     <string name="chk_all_good">Tout va bien</string>
-    <string name="chk_some">%1$d points à vérifier</string>
+    <string name="chk_some">À vérifier : %1$d</string>
     <string name="chk_offline">Le téléphone SIM est hors ligne : ses vérifications datent de la dernière mise à jour.</string>
     <string name="night_title">Mode nuit</string>
     <string name="night_on">Mode nuit</string>
@@ -452,4 +452,5 @@
     <string name="react">Réagir</string>
     <string name="chk_wifi6">Wi-Fi 6 sur le point d\'accès</string>
     <string name="chk_wifi6_fix">Bon signal, mais ce téléphone envoie à peine. Sur le téléphone SIM, ouvrez Point d\'accès, Avancé et désactivez le Wi-Fi 6.</string>
+    <string name="hs_title">Point d\'accès</string>
 </resources>
