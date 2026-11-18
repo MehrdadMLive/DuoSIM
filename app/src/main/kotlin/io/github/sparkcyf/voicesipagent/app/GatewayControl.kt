@@ -27,7 +27,7 @@ import org.json.JSONObject
  * persistent queue while no phone is registered.
  */
 /** Control operations that change something on this phone; each is written to the [Audit] log. */
-private val AUDITED = setOf("machine", "control", "ussd", "ussd-reply", "screen-start", "network-mode", "apn-select", "apn-add", "sms-app",
+private val AUDITED = setOf("hotspot-band", "tether-offload", "machine", "control", "ussd", "ussd-reply", "screen-start", "network-mode", "apn-select", "apn-add", "sms-app",
     "at-place", "charge-limit", "locate", "block-rules", "voicemail")
 
 /** Who changed what on this phone, and when (the last 200 entries). */
@@ -74,6 +74,13 @@ class GatewayControl(private val app: Context, private val rt: GatewayRuntime) {
                 prompts.prepare(greeting); prompts.prepare(screenPrompt)
                 send(status(), from)
             }
+            "hotspot-band" -> rt.worker {
+                privileged("softap-band", o.optInt("band", 5).toString())
+                // Restart a running hotspot so the new band is used now.
+                if (hotspotOn()) { privilegedRaw("hotspot", "off"); Thread.sleep(1500); privilegedRaw("hotspot", "on") }
+                send(status(), from)
+            }
+            "tether-offload" -> rt.worker { privileged("tether-offload", if (o.optBoolean("on")) "on" else "off"); send(status(), from) }
             "audit" -> send(JSONObject().put("op", "audit").put("list", Audit.recent(app)), from)
             "charge-limit" -> rt.worker {
                 privileged("charge-limit", o.optString("value", "off"))
@@ -263,6 +270,10 @@ class GatewayControl(private val app: Context, private val rt: GatewayRuntime) {
         o.put("uptimeMin", SystemClock.elapsedRealtime() / 60_000)
         o.put("version", runCatching { app.packageManager.getPackageInfo(app.packageName, 0).versionName }.getOrNull() ?: "")
         o.put("hotspot", hotspotOn())
+        privilegedRaw("softap-info", "").takeUnless { it.startsWith("error") }?.split(',')?.let {
+            o.put("apBand", it[0].toIntOrNull() ?: 0).put("apChannel", it.getOrNull(1)?.toIntOrNull() ?: 0)
+        }
+        o.put("offload", privilegedRaw("tether-offload-get", "") != "off")
         privilegedRaw("charge-limit-get", "").takeUnless { it.startsWith("error") }?.let { o.put("chargeLimit", it) }
         o.put("dailyReport", prefs.getBoolean("daily_report", true))
         o.put("vmOn", voicemailOn).put("screenMode", screenMode).put("greeting", greeting).put("screenPrompt", screenPrompt)

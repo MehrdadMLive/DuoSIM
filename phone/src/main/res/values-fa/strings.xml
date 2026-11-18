@@ -381,4 +381,11 @@
     <string name="sec_calls_sub">ترجمه، ساعات سکوت، ضبط، صدا</string>
     <string name="sec_messages_sub">برنامه پیش‌فرض، قوانین، کشیدن، پشتیبان</string>
     <string name="sec_app_sub">قفل، تاریخچه، به‌روزرسانی‌ها</string>
+    <string name="hs_radio">رادیوی هات‌اسپات</string>
+    <string name="hs_band">باند</string>
+    <string name="hs_band_sub">۵ گیگاهرتز نزدیک گوشی بسیار سریع‌تر است؛ ۲٫۴ گیگاهرتز دورتر می‌رود.</string>
+    <string name="hs_channel">کانال %1$d</string>
+    <string name="hs_auto">خودکار</string>
+    <string name="hs_offload">شتاب سخت‌افزاری</string>
+    <string name="hs_offload_sub">اگر هات‌اسپات کند شد یا تا راه‌اندازی دوباره کار نکرد، خاموشش کنید.</string>
 </resources>

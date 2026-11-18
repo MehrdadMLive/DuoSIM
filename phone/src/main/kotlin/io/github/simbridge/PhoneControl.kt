@@ -31,6 +31,10 @@ data class GatewayStatus(
     val dailyReport: Boolean = true,
     /** SimBridge voicemail on the SIM phone, call screening (0 off, 1 unknown, 2 hidden) and the spoken texts. */
     val vmOn: Boolean = false,
+    /** Hotspot band: 2 (2.4 GHz), 5 (5 GHz), 0 both; null when unknown. Offload: tethering hardware acceleration. */
+    val apBand: Int? = null,
+    val apChannel: Int = 0,
+    val offload: Boolean = true,
     val screenMode: Int = 0,
     val greeting: String = "",
     val screenPrompt: String = "",
@@ -60,6 +64,9 @@ data class GatewayStatus(
             chargeLimit = o.optString("chargeLimit").ifBlank { null },
             dailyReport = o.optBoolean("dailyReport", true),
             vmOn = o.optBoolean("vmOn"),
+            apBand = if (o.has("apBand")) o.optInt("apBand") else null,
+            apChannel = o.optInt("apChannel"),
+            offload = o.optBoolean("offload", true),
             screenMode = o.optInt("screenMode"),
             greeting = o.optString("greeting"),
             screenPrompt = o.optString("screenPrompt"),
@@ -253,6 +260,8 @@ class PhoneControl(private val core: LinkCore) {
             voicemail?.let { put("voicemail", it) }; screen?.let { put("screen", it) }
             greeting?.let { put("greeting", it) }; screenPrompt?.let { put("screenPrompt", it) }
         })
+    fun setHotspotBand(band: Int) = send(JSONObject().put("op", "hotspot-band").put("band", band))
+    fun setTetherOffload(on: Boolean) = send(JSONObject().put("op", "tether-offload").put("on", on))
     fun setChargeLimit(value: String) = send(JSONObject().put("op", "charge-limit").put("value", value))
     fun setDailyReport(on: Boolean) = send(JSONObject().put("op", "report").put("on", on)).also { refresh() }
 

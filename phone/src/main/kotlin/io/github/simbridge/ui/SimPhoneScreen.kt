@@ -286,6 +286,25 @@ fun SimPhoneScreen(core: LinkCore, tool: Tool? = null, onTool: (Tool?) -> Unit =
 
             }
             Tool.HOTSPOT -> {
+                // The hotspot radio: 5 GHz is several times faster at phone distance; 2.4 GHz reaches further.
+                Group(stringResource(R.string.hs_radio), listOf(
+                    {
+                        Column(Modifier.padding(16.dp)) {
+                            Text(stringResource(R.string.hs_band), style = MaterialTheme.typography.titleMedium)
+                            Muted(stringResource(R.string.hs_band_sub) + (if ((s?.apChannel ?: 0) > 0) " · " + stringResource(R.string.hs_channel, s!!.apChannel) else ""))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                                listOf(5 to "5 GHz", 2 to "2.4 GHz", 0 to stringResource(R.string.hs_auto)).forEach { (b, label) ->
+                                    FilterChip(s?.apBand == b, { guard { core.control.setHotspotBand(b) } }, enabled = online, label = { Text(label) })
+                                }
+                            }
+                        }
+                    },
+                    {
+                        GroupRow(null, stringResource(R.string.hs_offload), stringResource(R.string.hs_offload_sub), opens = false, trailing = {
+                            androidx.compose.material3.Switch(s?.offload != false, { on -> guard { core.control.setTetherOffload(on) } }, enabled = online)
+                        })
+                    },
+                ))
                 PlacesSection(core, online)
         if (s != null) Section(Icons.Filled.Devices, stringResource(R.string.dash_hotspot_clients, s.clients.size), Tint.Teal) {
             if (!s.hotspot) Muted(stringResource(R.string.dash_hotspot_off))

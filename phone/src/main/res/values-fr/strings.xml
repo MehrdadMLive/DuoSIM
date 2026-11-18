@@ -381,4 +381,11 @@
     <string name="sec_calls_sub">Traduction, heures calmes, enregistrement, audio</string>
     <string name="sec_messages_sub">Appli par défaut, règles, balayages, sauvegarde</string>
     <string name="sec_app_sub">Verrou, historique, mises à jour</string>
+    <string name="hs_radio">Radio du point d\'accès</string>
+    <string name="hs_band">Bande</string>
+    <string name="hs_band_sub">Le 5 GHz est bien plus rapide à proximité ; le 2,4 GHz porte plus loin.</string>
+    <string name="hs_channel">canal %1$d</string>
+    <string name="hs_auto">Auto</string>
+    <string name="hs_offload">Accélération matérielle</string>
+    <string name="hs_offload_sub">Désactivez-la si le point d\'accès ralentit ou s\'arrête jusqu\'au redémarrage.</string>
 </resources>

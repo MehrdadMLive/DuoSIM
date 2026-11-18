@@ -416,4 +416,11 @@
     <string name="sec_calls_sub">Çeviri, sessiz saatler, kayıt, ses</string>
     <string name="sec_messages_sub">Varsayılan uygulama, kurallar, kaydırma, yedek</string>
     <string name="sec_app_sub">Kilit, geçmiş, güncellemeler</string>
+    <string name="hs_radio">Hotspot radyosu</string>
+    <string name="hs_band">Bant</string>
+    <string name="hs_band_sub">5 GHz telefona yakınken çok daha hızlıdır; 2,4 GHz daha uzağa ulaşır.</string>
+    <string name="hs_channel">kanal %1$d</string>
+    <string name="hs_auto">Otomatik</string>
+    <string name="hs_offload">Donanım hızlandırma</string>
+    <string name="hs_offload_sub">Hotspot yavaşlarsa veya yeniden başlatana kadar çalışmazsa kapatın.</string>
 </resources>

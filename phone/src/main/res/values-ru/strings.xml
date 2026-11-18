@@ -381,4 +381,11 @@
     <string name="sec_calls_sub">Перевод, тихие часы, запись, звук</string>
     <string name="sec_messages_sub">Приложение по умолчанию, правила, смахивания, копия</string>
     <string name="sec_app_sub">Блокировка, история, обновления</string>
+    <string name="hs_radio">Радио точки доступа</string>
+    <string name="hs_band">Диапазон</string>
+    <string name="hs_band_sub">5 ГГц намного быстрее рядом с телефоном; 2,4 ГГц бьёт дальше.</string>
+    <string name="hs_channel">канал %1$d</string>
+    <string name="hs_auto">Авто</string>
+    <string name="hs_offload">Аппаратное ускорение</string>
+    <string name="hs_offload_sub">Выключите, если точка доступа тормозит или перестаёт работать до перезагрузки.</string>
 </resources>

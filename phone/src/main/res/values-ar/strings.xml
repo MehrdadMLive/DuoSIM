@@ -381,4 +381,11 @@
     <string name="sec_calls_sub">الترجمة وساعات الهدوء والتسجيل والصوت</string>
     <string name="sec_messages_sub">التطبيق الافتراضي والقواعد والسحب والنسخ الاحتياطي</string>
     <string name="sec_app_sub">القفل والسجل والتحديثات</string>
+    <string name="hs_radio">راديو نقطة الاتصال</string>
+    <string name="hs_band">النطاق</string>
+    <string name="hs_band_sub">5 غيغاهرتز أسرع بكثير قرب الهاتف؛ و2.4 غيغاهرتز يصل أبعد.</string>
+    <string name="hs_channel">القناة %1$d</string>
+    <string name="hs_auto">تلقائي</string>
+    <string name="hs_offload">التسريع بالعتاد</string>
+    <string name="hs_offload_sub">أوقفه إذا أصبحت نقطة الاتصال بطيئة أو توقفت حتى إعادة التشغيل.</string>
 </resources>

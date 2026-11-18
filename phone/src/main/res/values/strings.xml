@@ -417,4 +417,11 @@
     <string name="sec_calls_sub">Translation, quiet hours, recording, audio</string>
     <string name="sec_messages_sub">Default app, rules, swipes, backup</string>
     <string name="sec_app_sub">Lock, history, updates</string>
+    <string name="hs_radio">Hotspot radio</string>
+    <string name="hs_band">Band</string>
+    <string name="hs_band_sub">5 GHz is much faster next to the phone; 2.4 GHz reaches further.</string>
+    <string name="hs_channel">channel %1$d</string>
+    <string name="hs_auto">Auto</string>
+    <string name="hs_offload">Hardware acceleration</string>
+    <string name="hs_offload_sub">Turn off if the hotspot gets slow or stops until a restart.</string>
 </resources>
