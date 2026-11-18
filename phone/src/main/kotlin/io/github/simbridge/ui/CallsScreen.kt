@@ -62,6 +62,7 @@ fun CallsScreen(core: LinkCore, onTool: (Tool) -> Unit, onSettings: (Int) -> Uni
 
     Box(Modifier.fillMaxSize()) {
         PageScaffold(stringResource(R.string.tab_calls), onBack = null) {
+            LastCallCard(core)
             Group(stringResource(R.string.calls_features), listOf(
                 { GroupRow(Icons.Filled.Voicemail, stringResource(R.string.tool_calls),
                     stringResource(if (st?.vmOn == true) R.string.home_vm_on else R.string.home_vm_off), Tint.Green, { onTool(Tool.CALLS) }) },

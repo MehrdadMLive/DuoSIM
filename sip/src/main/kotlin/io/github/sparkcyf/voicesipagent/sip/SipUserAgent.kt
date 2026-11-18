@@ -106,6 +106,8 @@ class SipUserAgent(
     fun isRegisteredAddress(ip: String) = bindings.values.any { it.addr.address.hostAddress == ip }
     /** Number of phones registered right now (server mode). */
     val registeredPhones: Int get() = bindings.size
+    /** Addresses of the phones registered now (server mode). */
+    val phoneAddresses: List<String> get() = bindings.values.mapNotNull { it.addr.address?.hostAddress }.distinct()
     private fun bindingFor(from: InetSocketAddress) =
         bindings.values.firstOrNull { it.addr == from } ?: bindings.values.firstOrNull { it.addr.address == from.address }
     private fun bindingKey(contactUser: String, from: InetSocketAddress) =

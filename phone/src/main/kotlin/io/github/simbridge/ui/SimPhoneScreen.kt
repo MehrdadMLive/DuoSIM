@@ -74,6 +74,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.filled.Settings
@@ -101,7 +102,7 @@ import kotlinx.coroutines.delay
 enum class Tool(val title: Int) {
     USSD(R.string.dash_ussd), DATA(R.string.dash_data), NETWORK(R.string.tool_network), HOTSPOT(R.string.tool_hotspot),
     LOCATE(R.string.dash_locate), SPEED(R.string.speed_title), BATTERY(R.string.tool_battery), APPS(R.string.notif_title),
-    CALLS(R.string.tool_calls),
+    CALLS(R.string.tool_calls), CHECK(R.string.chk_title),
 }
 
 /**
@@ -137,6 +138,7 @@ fun SimPhoneScreen(core: LinkCore, tool: Tool? = null, onTool: (Tool?) -> Unit =
         IconButton({ core.control.refresh() }, enabled = online) { Icon(Icons.Filled.Refresh, stringResource(R.string.refresh)) }
     }) {
         Hero(s, online, link.detail)
+        Group(null, listOf { GroupRow(Icons.Filled.HealthAndSafety, stringResource(R.string.chk_title), stringResource(R.string.chk_sub), Tint.Blue, { onTool(Tool.CHECK) }) })
         GroupLabel(stringResource(R.string.home_controls))
         TileGrid(listOf(
             { m -> Tile(Icons.Filled.SignalCellularAlt, stringResource(R.string.dash_mobile_data), onOff(pending["mobile-data"] as Boolean? ?: s?.dataOn),
@@ -209,6 +211,7 @@ fun SimPhoneScreen(core: LinkCore, tool: Tool? = null, onTool: (Tool?) -> Unit =
             if (waitingUssd) { Spacer(Modifier.height(8.dp)); LinearProgressIndicator(Modifier.fillMaxWidth()) }
         }            }
             Tool.DATA -> {
+                DataLimitCard(core, s, online)
         if (s != null) Section(Icons.Filled.DataUsage, stringResource(R.string.dash_data), Tint.Purple) {
             if (s.dataToday == null) Muted(stringResource(R.string.dash_data_unknown))
             else {
@@ -227,6 +230,7 @@ fun SimPhoneScreen(core: LinkCore, tool: Tool? = null, onTool: (Tool?) -> Unit =
 
             }
             Tool.NETWORK -> {
+                PhonesCard(s)
         Section(Icons.Filled.SimCard, stringResource(R.string.dash_sims), Tint.Blue) {
             if (s == null) Muted(stringResource(R.string.dash_waiting))
             else if (s.sims.isEmpty()) Muted(stringResource(R.string.dash_no_sim))
@@ -305,6 +309,8 @@ fun SimPhoneScreen(core: LinkCore, tool: Tool? = null, onTool: (Tool?) -> Unit =
                         })
                     },
                 ))
+                HotspotSmartCard(core, s, online)
+                LinkHealth(core, s)
                 PlacesSection(core, online)
         if (s != null) Section(Icons.Filled.Devices, stringResource(R.string.dash_hotspot_clients, s.clients.size), Tint.Teal) {
             if (!s.hotspot) Muted(stringResource(R.string.dash_hotspot_off))
@@ -339,7 +345,9 @@ fun SimPhoneScreen(core: LinkCore, tool: Tool? = null, onTool: (Tool?) -> Unit =
 
             }
             Tool.SPEED -> SpeedTest(core, online)
+            Tool.CHECK -> DiagnosticsPage(core, s, online, onTool)
             Tool.BATTERY -> {
+                NightModeCard(core, s, online)
         // Samsung battery protection: stop charging at a level, for a phone that is always plugged in.
         Section(Icons.Filled.BatteryChargingFull, stringResource(R.string.dash_charge_limit), Tint.Green) {
             Muted(stringResource(R.string.dash_charge_limit_sub))

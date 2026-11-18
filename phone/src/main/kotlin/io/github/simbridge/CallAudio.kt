@@ -27,10 +27,22 @@ class CallAudio {
     @Volatile private var running = false
     private var thread: Thread? = null
 
+    private var startedAt = 0L
+    private var port: MediaPort? = null
+
     @Synchronized fun start(port: MediaPort) {
         if (running) return
+        startedAt = System.currentTimeMillis(); this.port = port
         running = true
         thread = Thread({ run(port) }, "call-audio").also { it.start() }
+    }
+
+    /** How the last call sounded: length, gaps (missing audio) and late audio dropped, plus Wi-Fi. */
+    fun quality(ctx: android.content.Context): CallQuality? {
+        val p = port as? io.github.sparkcyf.voicesipagent.sip.media.RtpSession ?: return null
+        if (startedAt == 0L) return null
+        return CallQuality(System.currentTimeMillis(), (System.currentTimeMillis() - startedAt) / 1000,
+            p.jitterUnderruns, p.jitterDropped, p.packetsReceived, WifiLink.local(ctx))
     }
 
     @Synchronized fun stop() {
@@ -116,4 +128,23 @@ object AudioMeter {
     @Volatile var upMax = 0
     @Volatile var rate = 0
     fun reset() { downMax = 0; upMax = 0 }
+}
+
+/** One call's audio health; [gaps] and [late] count 20 ms frames. */
+data class CallQuality(val at: Long, val seconds: Long, val gaps: Long, val late: Long, val packets: Long, val wifi: WifiLink?) {
+    /** Share of the call with missing audio. */
+    val lossPct get() = if (seconds <= 0) 0.0 else gaps * 2.0 / seconds   // 20 ms frames: gaps*0.02 s / seconds * 100
+    val verdict get() = when { lossPct < 1 && late < seconds / 4 -> 0; lossPct < 4 -> 1; else -> 2 }   // good, fair, poor
+
+    fun json(): String = org.json.JSONObject().put("at", at).put("s", seconds).put("g", gaps).put("l", late).put("p", packets)
+        .put("w", wifi?.let { "${it.band}|${it.rssi}|${it.tx}|${it.rx}" } ?: "").toString()
+
+    companion object {
+        fun parse(s: String?): CallQuality? = runCatching {
+            val o = org.json.JSONObject(s!!)
+            val w = o.optString("w").split('|').takeIf { it.size == 4 }
+            CallQuality(o.getLong("at"), o.getLong("s"), o.getLong("g"), o.getLong("l"), o.getLong("p"),
+                w?.let { WifiLink("", if (it[0] == "5 GHz") 5200 else if (it[0] == "6 GHz") 6000 else 2400, it[1].toInt(), it[2].toInt(), it[3].toInt()) })
+        }.getOrNull()
+    }
 }

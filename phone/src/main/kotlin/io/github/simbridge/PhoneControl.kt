@@ -33,6 +33,16 @@ data class GatewayStatus(
     val vmOn: Boolean = false,
     /** Hotspot band: 2 (2.4 GHz), 5 (5 GHz), 0 both; null when unknown. Offload: tethering hardware acceleration. */
     val apBand: Int? = null,
+    val smartHotspot: Boolean = false,
+    /** Night mode on the SIM phone: on, start/end (minutes of the day), data off, battery saver on. */
+    val night: NightMode = NightMode(),
+    val dataLimitGb: Double = 0.0,
+    val proxy: Boolean = false,
+    val proxyPort: Int = 8118,
+    /** Main phones registered now (addresses). */
+    val phones: List<String> = emptyList(),
+    /** The SIM phone's own Wi-Fi link when it is on Wi-Fi. */
+    val wifi: WifiLink? = null,
     val apChannel: Int = 0,
     val offload: Boolean = true,
     val screenMode: Int = 0,
@@ -65,6 +75,13 @@ data class GatewayStatus(
             dailyReport = o.optBoolean("dailyReport", true),
             vmOn = o.optBoolean("vmOn"),
             apBand = if (o.has("apBand")) o.optInt("apBand") else null,
+            smartHotspot = o.optBoolean("smartHotspot"),
+            night = o.optJSONObject("night")?.let { n -> NightMode(n.optBoolean("on"), n.optInt("start", 60), n.optInt("end", 420), n.optBoolean("data", true), n.optBoolean("saver", true)) } ?: NightMode(),
+            dataLimitGb = o.optDouble("dataLimitGb", 0.0),
+            proxy = o.optBoolean("proxy"),
+            proxyPort = o.optInt("proxyPort", 8118),
+            phones = o.optJSONArray("phones")?.let { a -> (0 until a.length()).map { a.getString(it) } } ?: emptyList(),
+            wifi = o.optJSONObject("wifi")?.let { w -> WifiLink(w.optString("ssid"), w.optInt("freq"), w.optInt("rssi"), w.optInt("tx"), w.optInt("rx")) },
             apChannel = o.optInt("apChannel"),
             offload = o.optBoolean("offload", true),
             screenMode = o.optInt("screenMode"),
@@ -150,6 +167,7 @@ class PhoneControl(private val core: LinkCore) {
             "audit" -> _audit.value = (o.optJSONArray("list") ?: JSONArray()).let { a ->
                 (0 until a.length()).map { a.getJSONObject(it).let { e -> AuditEntry(e.optLong("t"), e.optString("what"), e.optString("from")) } }
             }
+            "speed-net" -> _simSpeed.value = o.optDouble("mbps", 0.0)
             "speed-ready" -> _speed.value = o.optInt("port") to o.optString("token")
             "wifi-saved" -> _savedWifi.value = (o.optJSONArray("list") ?: JSONArray()).let { a -> (0 until a.length()).map { a.getString(it) } }
             "apns" -> _apns.value = (o.optJSONArray("list") ?: JSONArray()).let { a ->
@@ -260,6 +278,16 @@ class PhoneControl(private val core: LinkCore) {
             voicemail?.let { put("voicemail", it) }; screen?.let { put("screen", it) }
             greeting?.let { put("greeting", it) }; screenPrompt?.let { put("screenPrompt", it) }
         })
+    fun setSmartHotspot(on: Boolean) = send(JSONObject().put("op", "smart-hotspot").put("on", on))
+    fun setNight(n: NightMode) = send(JSONObject().put("op", "night").put("on", n.on).put("start", n.start).put("end", n.end).put("data", n.data).put("saver", n.saver))
+    fun setDataLimit(gb: Double) = send(JSONObject().put("op", "data-limit").put("gb", gb))
+    fun setProxy(on: Boolean) = send(JSONObject().put("op", "proxy").put("on", on))
+
+    /** The SIM phone's own download speed (Mb/s), measured on request; -1 while measuring. */
+    private val _simSpeed = MutableStateFlow<Double?>(null)
+    val simSpeed: StateFlow<Double?> = _simSpeed
+    fun measureSimSpeed() { _simSpeed.value = -1.0; send(JSONObject().put("op", "speed-net")) }
+
     fun setHotspotBand(band: Int) = send(JSONObject().put("op", "hotspot-band").put("band", band))
     fun setTetherOffload(on: Boolean) = send(JSONObject().put("op", "tether-offload").put("on", on))
     fun setChargeLimit(value: String) = send(JSONObject().put("op", "charge-limit").put("value", value))
@@ -410,3 +438,27 @@ data class Place(val name: String, val ssid: String, val password: String)
 
 /** One change on the SIM phone: when, what, and from which address. */
 data class AuditEntry(val at: Long, val what: String, val from: String)
+
+data class NightMode(val on: Boolean = false, val start: Int = 60, val end: Int = 420, val data: Boolean = true, val saver: Boolean = true)
+
+/** A Wi-Fi link: network name, frequency (MHz), signal (dBm) and link speeds (Mb/s). */
+data class WifiLink(val ssid: String, val freq: Int, val rssi: Int, val tx: Int, val rx: Int) {
+    val band get() = when { freq >= 5925 -> "6 GHz"; freq >= 4900 -> "5 GHz"; freq > 0 -> "2.4 GHz"; else -> "" }
+    /** Slow enough to hurt calls and browsing. */
+    val weak get() = (tx in 1..29) || rssi < -75
+
+    companion object {
+        /** This phone's own Wi-Fi link, or null when not on Wi-Fi. */
+        fun local(ctx: android.content.Context): WifiLink? = runCatching {
+            @Suppress("DEPRECATION") val i = ctx.applicationContext.getSystemService(android.net.wifi.WifiManager::class.java).connectionInfo
+            if (i == null || i.networkId == -1) null
+            else WifiLink(i.ssid.trim('"'), i.frequency, i.rssi, i.txLinkSpeedMbps, i.rxLinkSpeedMbps)
+        }.getOrNull()
+
+        /** The Wi-Fi gateway's address (the SIM phone's, when this phone is on its hotspot). */
+        fun gatewayIp(ctx: android.content.Context): String? = runCatching {
+            val cm = ctx.getSystemService(android.net.ConnectivityManager::class.java)
+            cm.getLinkProperties(cm.activeNetwork)?.routes?.firstOrNull { it.isDefaultRoute && it.gateway != null }?.gateway?.hostAddress
+        }.getOrNull()
+    }
+}

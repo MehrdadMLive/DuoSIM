@@ -188,6 +188,7 @@ class GatewayConnection(private val core: LinkCore, private val leg: CallLeg, pr
         bubble?.let { b -> android.os.Handler(android.os.Looper.getMainLooper()).post { b.hide() } }
         bubble = null
         if (boosted) { boosted = false; WifiBoost.release() }
+        audio.quality(core.context)?.takeIf { it.seconds >= 5 }?.let { q -> core.prefs.lastCall = q.json(); Log.i("call quality: ${q.seconds}s gaps=${q.gaps} late=${q.late}") }
         Thread { audio.stop(); audio.translator?.close(); audio.translator = null }.start()
         core.legs.remove(leg.id)
         setDisconnected(dc)

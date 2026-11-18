@@ -126,6 +126,11 @@ class Prefs(context: Context) {
         e.apply()
     }
 
+    /** Audio health of the last call (see CallQuality). */
+    var lastCall: String?
+        get() = p.getString("last_call", null)
+        set(v) = p.edit().putString("last_call", v).apply()
+
     /** What a swipe on a conversation does: "read", "archive", "delete", "pin" or "none". */
     var swipeRight: String
         get() = p.getString("swipe_right", "read")!!
