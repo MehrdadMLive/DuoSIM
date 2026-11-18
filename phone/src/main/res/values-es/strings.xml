@@ -450,4 +450,6 @@
     <string name="voice_hold">Mantén pulsado para grabar una nota de voz</string>
     <string name="voice_note">Nota de voz %1$s</string>
     <string name="react">Reaccionar</string>
+    <string name="chk_wifi6">Wi-Fi 6 en el punto de acceso</string>
+    <string name="chk_wifi6_fix">Buena señal, pero este teléfono apenas puede enviar. En el teléfono SIM abre Punto de acceso, Avanzado y desactiva Wi-Fi 6.</string>
 </resources>

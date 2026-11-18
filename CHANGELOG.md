@@ -1,5 +1,54 @@
 # Changelog
 
+## SimBridge 2.8.0
+
+Update both apps. Pairing is kept. This release includes the 2.7 redesign, which was not released on its own.
+
+### Why the hotspot was slow: Wi-Fi 6
+On a Galaxy A56 hotspot with **Wi-Fi 6** turned on, a Pixel 9 joined with a very strong signal
+(−32 dBm) but its send rate was stuck at **8 Mbps** (it can do 1200). A direct test between the two
+phones, with no internet involved, moved only about **1 Mbps** from the Pixel to the SIM phone.
+Every download needs small replies sent back, so browsing, speed tests and calls were all slow,
+and only a reboot of both phones sometimes cleared it. The 2.4 / 5 / 6 GHz band made no difference.
+
+After turning off **Wi-Fi 6** in the SIM phone's hotspot settings (Hotspot > Advanced), the same
+link came up as Wi-Fi 5 at **702 / 866 Mbps**.
+
+- **Fix:** on the SIM phone open *Hotspot > Advanced* and turn off *Wi-Fi 6*.
+- *Check everything* now spots this: when the link is Wi-Fi 6 with a strong signal but a send rate
+  under 30 Mbps, it tells you to turn Wi-Fi 6 off.
+- Other things this ruled out: the carrier (the hotspot does not use a separate tethering APN) and
+  the band. If your carrier does slow down tethered traffic, use *Carrier-friendly sharing* below.
+
+### New look (2.7)
+- A bottom bar with **Messages, Calls, SIM phone and Settings**. Each tool on the SIM phone has its
+  own page, and settings are a short list of sections instead of tabs.
+- Quick-Settings-style tiles for mobile data, hotspot, battery saver, remote screen, ring and restart.
+- A design system (`docs/DESIGN.md`): Material 3 with your wallpaper colours, rounded grouped
+  lists and clear on/off states.
+
+### Calls
+- Fewer gaps and less delay: Wi-Fi low-latency locks on both phones during a call, a gentler
+  jitter buffer that catches up without big jumps, and no more Wi-Fi scans during a call.
+- **Last call card:** how much audio went missing and how good the link was, with a tip.
+
+### SIM phone and hotspot
+- **Check everything:** one page that finds what is wrong and links to the fix.
+- **Wi-Fi links:** signal, band and speed of both phones' Wi-Fi.
+- **Hotspot band** (5 / 2.4 GHz / auto) and hardware acceleration switch.
+- **Smart hotspot:** turns off when both phones share a Wi-Fi and nobody uses it, back on when
+  Wi-Fi is gone.
+- **Carrier-friendly sharing:** an optional web proxy on the SIM phone (port 8118) for carriers
+  that slow down hotspot traffic. *SIM phone's own internet* speed test shows whether you need it.
+- **Night mode:** mobile data off and battery saver on at night on the SIM phone.
+- **Monthly data limit:** a text at 80 % and 100 %.
+- **Main phones:** see how many phones and tablets are connected.
+
+### Main phone
+- **Quick Settings tiles** for the SIM phone's hotspot, mobile data and battery saver.
+- **Voice notes:** hold the mic in a chat to record and send one.
+- **Reactions:** select a message and react with an emoji.
+
 ## SimBridge 2.6.0
 
 Update both apps. Pairing is kept.

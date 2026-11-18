@@ -108,6 +108,7 @@ fun DiagnosticsPage(core: LinkCore, s: GatewayStatus?, online: Boolean, onTool: 
                 if (link.state == LinkState.CONNECTED) ctx.getString(R.string.dash_connected) else link.detail.ifBlank { ctx.getString(R.string.chk_link_fix) }),
             Check(mine != null && !mine.weak, ctx.getString(R.string.chk_wifi),
                 mine?.let { linkText(it) + if (it.weak) "\n" + ctx.getString(R.string.health_weak_sub) else "" } ?: ctx.getString(R.string.health_no_wifi)),
+            if (mine?.stuckAx == true) Check(false, ctx.getString(R.string.chk_wifi6), ctx.getString(R.string.chk_wifi6_fix)) else null,
             Check(Telecom.isEnabled(ctx), ctx.getString(R.string.chk_account), ctx.getString(R.string.chk_account_fix),
                 open(Intent(android.telecom.TelecomManager.ACTION_CHANGE_PHONE_ACCOUNTS)), ctx.getString(R.string.chk_open)),
             Check(ctx.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(ctx.packageName), ctx.getString(R.string.chk_battery),

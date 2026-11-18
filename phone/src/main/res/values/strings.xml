@@ -486,4 +486,6 @@
     <string name="voice_hold">Hold to record a voice note</string>
     <string name="voice_note">Voice note %1$s</string>
     <string name="react">React</string>
+    <string name="chk_wifi6">Wi-Fi 6 on the hotspot</string>
+    <string name="chk_wifi6_fix">Strong signal but this phone can barely send. On the SIM phone open Hotspot, Advanced and turn off Wi-Fi 6.</string>
 </resources>

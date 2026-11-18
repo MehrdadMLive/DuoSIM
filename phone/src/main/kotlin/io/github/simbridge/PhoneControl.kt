@@ -442,17 +442,19 @@ data class AuditEntry(val at: Long, val what: String, val from: String)
 data class NightMode(val on: Boolean = false, val start: Int = 60, val end: Int = 420, val data: Boolean = true, val saver: Boolean = true)
 
 /** A Wi-Fi link: network name, frequency (MHz), signal (dBm) and link speeds (Mb/s). */
-data class WifiLink(val ssid: String, val freq: Int, val rssi: Int, val tx: Int, val rx: Int) {
+data class WifiLink(val ssid: String, val freq: Int, val rssi: Int, val tx: Int, val rx: Int, val std: Int = 0) {
     val band get() = when { freq >= 5925 -> "6 GHz"; freq >= 4900 -> "5 GHz"; freq > 0 -> "2.4 GHz"; else -> "" }
     /** Slow enough to hurt calls and browsing. */
     val weak get() = (tx in 1..29) || rssi < -75
+    /** Wi-Fi 6 link with a strong signal but a stuck send rate: some Samsung hotspots do this with Pixels. */
+    val stuckAx get() = std == 6 && tx in 1..29 && rssi > -60
 
     companion object {
         /** This phone's own Wi-Fi link, or null when not on Wi-Fi. */
         fun local(ctx: android.content.Context): WifiLink? = runCatching {
             @Suppress("DEPRECATION") val i = ctx.applicationContext.getSystemService(android.net.wifi.WifiManager::class.java).connectionInfo
             if (i == null || i.networkId == -1) null
-            else WifiLink(i.ssid.trim('"'), i.frequency, i.rssi, i.txLinkSpeedMbps, i.rxLinkSpeedMbps)
+            else WifiLink(i.ssid.trim('"'), i.frequency, i.rssi, i.txLinkSpeedMbps, i.rxLinkSpeedMbps, i.wifiStandard)
         }.getOrNull()
 
         /** The Wi-Fi gateway's address (the SIM phone's, when this phone is on its hotspot). */

@@ -450,4 +450,6 @@
     <string name="voice_hold">Удерживайте для голосовой заметки</string>
     <string name="voice_note">Голосовая заметка %1$s</string>
     <string name="react">Реакция</string>
+    <string name="chk_wifi6">Wi-Fi 6 на точке доступа</string>
+    <string name="chk_wifi6_fix">Сигнал сильный, но этот телефон почти не может отправлять. На SIM-телефоне откройте Точка доступа, Дополнительно и выключите Wi-Fi 6.</string>
 </resources>
