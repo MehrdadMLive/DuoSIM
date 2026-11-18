@@ -94,6 +94,7 @@ data class HealthState(
 class GatewayRuntime private constructor(context: Context) {
     private val app = context.applicationContext
     private val worker = newWorker()
+    @Volatile private var boostedSession: Any? = null
     /** Runs [block] on the gateway worker thread (control, SIP, privileged calls). */
     fun worker(block: () -> Unit) = worker.execute(block)
     val settingsStore = SettingsStore(app)
@@ -731,6 +732,12 @@ class GatewayRuntime private constructor(context: Context) {
         )
         b.addListener { session ->
             noteMissed(session)
+            // The SIM phone's Wi-Fi radio stays awake while a call is bridged (no power-save bursts).
+            if (session.connectedAtMs != null && session.endedAtMs == null && boostedSession != session) {
+                boostedSession = session; WifiBoost.acquire(app)
+            } else if (session.endedAtMs != null && boostedSession == session) {
+                boostedSession = null; WifiBoost.release()
+            }
             val description = describe(session)
             worker.execute {
                 if (bridge !== b) return@execute

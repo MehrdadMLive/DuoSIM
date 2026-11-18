@@ -74,6 +74,7 @@ class GatewayConnectionService : ConnectionService() {
 
 class GatewayConnection(private val core: LinkCore, private val leg: CallLeg, private val incoming: Boolean) : Connection() {
     private val audio = CallAudio()
+    private var boosted = false
     private var ringback: ToneGenerator? = null
     @Volatile private var done = false
     @Volatile private var recorder: CallRecorder? = null
@@ -138,7 +139,10 @@ class GatewayConnection(private val core: LinkCore, private val leg: CallLeg, pr
                 }
             }
             override fun onMediaChanged(leg: CallLeg, media: MediaPort?) {
-                if (media != null && leg.state == LegState.CONNECTED) audio.start(media)
+                if (media != null && leg.state == LegState.CONNECTED) {
+                    if (!boosted) { boosted = true; WifiBoost.acquire(core.context) }
+                    audio.start(media)
+                }
             }
         })
         if (leg.state == LegState.ENDED) remoteEnded(leg.endCause)
@@ -183,6 +187,7 @@ class GatewayConnection(private val core: LinkCore, private val leg: CallLeg, pr
         stopRingback()
         bubble?.let { b -> android.os.Handler(android.os.Looper.getMainLooper()).post { b.hide() } }
         bubble = null
+        if (boosted) { boosted = false; WifiBoost.release() }
         Thread { audio.stop(); audio.translator?.close(); audio.translator = null }.start()
         core.legs.remove(leg.id)
         setDisconnected(dc)

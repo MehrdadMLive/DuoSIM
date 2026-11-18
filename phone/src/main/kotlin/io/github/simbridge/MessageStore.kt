@@ -116,6 +116,12 @@ class MessageStore(context: Context) : SQLiteOpenHelper(context, "messages.db", 
         if (status == Msg.FAILED || (rank[status] ?: 0) > (rank[cur] ?: -1)) setStatus(id, status)
     }
 
+    /** Voicemail messages (an audio attachment), newest first. */
+    fun voicemails(limit: Int = 30): List<Msg> =
+        readableDatabase.rawQuery("SELECT * FROM m WHERE out=0 AND att LIKE '%audio/%' ORDER BY ts DESC LIMIT $limit", null).use { c ->
+            ArrayList<Msg>().apply { while (c.moveToNext()) add(c.msg()) }
+        }
+
     fun setBody(id: Long, body: String) {
         writableDatabase.execSQL("UPDATE m SET body=? WHERE id=?", arrayOf<Any>(body, id))
         changed()

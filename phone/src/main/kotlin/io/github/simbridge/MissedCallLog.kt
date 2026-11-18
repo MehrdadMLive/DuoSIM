@@ -22,4 +22,21 @@ object MissedCallLog {
             }.orEmpty()
         }.getOrDefault(emptyList())
     }
+
+    /** A call in this phone's log; [type] is a CallLog.Calls type (incoming, outgoing, missed…). */
+    data class Entry(val number: String, val name: String?, val at: Long, val type: Int, val durationSec: Long)
+
+    fun all(ctx: Context, limit: Int): List<Entry> {
+        if (ctx.checkSelfPermission(Manifest.permission.READ_CALL_LOG) != PackageManager.PERMISSION_GRANTED) return emptyList()
+        return runCatching {
+            ctx.contentResolver.query(CallLog.Calls.CONTENT_URI,
+                arrayOf(CallLog.Calls.NUMBER, CallLog.Calls.CACHED_NAME, CallLog.Calls.DATE, CallLog.Calls.TYPE, CallLog.Calls.DURATION),
+                null, null, "${CallLog.Calls.DATE} DESC")?.use { c ->
+                buildList {
+                    while (c.moveToNext() && size < limit)
+                        add(Entry(c.getString(0).orEmpty(), c.getString(1)?.ifBlank { null }, c.getLong(2), c.getInt(3), c.getLong(4)))
+                }
+            }.orEmpty()
+        }.getOrDefault(emptyList())
+    }
 }

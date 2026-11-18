@@ -63,6 +63,10 @@ import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Refresh
 import io.github.simbridge.R
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -84,8 +88,9 @@ import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(core: LinkCore, onSimPhone: () -> Unit = {}, onBlocked: () -> Unit = {}, onRecordings: () -> Unit = {},
-                   onBack: (() -> Unit)?) {
+fun SettingsScreen(core: LinkCore, section: Int? = null, onSection: (Int?) -> Unit = {}, onSimPhone: () -> Unit = {},
+                   onBlocked: () -> Unit = {}, onRecordings: () -> Unit = {}) {
+    if (section == null) { SettingsHub(core, onSection); return }
     val ctx = LocalContext.current
     val status by core.status.collectAsState()
     var pasting by remember { mutableStateOf(false) }
@@ -93,8 +98,6 @@ fun SettingsScreen(core: LinkCore, onSimPhone: () -> Unit = {}, onBlocked: () ->
     var pending by remember { mutableStateOf<PairedGateway?>(null) }
     var confirmUnpair by remember { mutableStateOf(false) }
     var tick by remember { mutableIntStateOf(0) }
-    val pager = androidx.compose.foundation.pager.rememberPagerState { 4 }
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
     LaunchedEffect(Unit) { while (true) { delay(1500); tick++ } }   // refresh account / battery state after returning
     val accountOn = remember(tick) { Telecom.isEnabled(ctx) }
     val batteryOk = remember(tick) { ctx.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(ctx.packageName) }
@@ -104,23 +107,14 @@ fun SettingsScreen(core: LinkCore, onSimPhone: () -> Unit = {}, onBlocked: () ->
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.tab_settings)) },
-                navigationIcon = { onBack?.let { IconButton(it) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } } },
+                title = { Text(stringResource(SECTIONS[section].title)) },
+                navigationIcon = { IconButton({ onSection(null) }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
             )
         },
-        // Tabs at the bottom, within thumb reach; swipe between pages too.
-        bottomBar = {
-            androidx.compose.material3.PrimaryScrollableTabRow(pager.currentPage, edgePadding = 4.dp,
-                modifier = Modifier.navigationBarsPadding()) {
-                listOf(R.string.set_tab_connection, R.string.set_tab_calls, R.string.set_tab_messages, R.string.set_tab_app).forEachIndexed { i, r ->
-                    androidx.compose.material3.Tab(pager.currentPage == i, { scope.launch { pager.animateScrollToPage(i) } }, text = { Text(stringResource(r)) })
-                }
-            }
-        },
     ) { pad ->
-        androidx.compose.foundation.pager.HorizontalPager(pager, Modifier.fillMaxSize().padding(pad)) { tab ->
+        val tab = section
         Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+            Modifier.fillMaxSize().padding(pad).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             val connected = status.state == LinkState.CONNECTED
@@ -328,7 +322,6 @@ fun SettingsScreen(core: LinkCore, onSimPhone: () -> Unit = {}, onBlocked: () ->
                 }
             }
         }
-        }
     }
     ConfirmPairing(core, pending) { pending = null; pasting = false; link = ""; tick++ }
     if (confirmUnpair) AlertDialog(
@@ -534,3 +527,35 @@ private fun SwipePicker(label: String, value: String, set: (String) -> Unit) {
     }
 }
 
+/** The settings sections: one row each on the Settings page. */
+internal data class SettingsSection(val title: Int, val summary: Int, val icon: ImageVector, val tint: Color)
+
+internal val SECTIONS = listOf(
+    SettingsSection(R.string.set_tab_connection, R.string.sec_connection_sub, Icons.Filled.Link, Tint.Blue),
+    SettingsSection(R.string.set_tab_calls, R.string.sec_calls_sub, Icons.Filled.Call, Tint.Green),
+    SettingsSection(R.string.set_tab_messages, R.string.sec_messages_sub, Icons.Filled.Sms, Tint.Purple),
+    SettingsSection(R.string.set_tab_app, R.string.sec_app_sub, Icons.Filled.Security, Tint.Orange),
+)
+
+/** Settings, top level: the connection state, then one row per section. */
+@Composable
+private fun SettingsHub(core: LinkCore, onSection: (Int) -> Unit) {
+    val status by core.status.collectAsState()
+    val connected = status.state == LinkState.CONNECTED
+    PageScaffold(stringResource(R.string.tab_settings), onBack = null) {
+        Panel {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge)
+                    Text("v" + io.github.simbridge.BuildConfig.VERSION_NAME + " · " + core.prefs.user,
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                StatusPill(if (connected) stringResource(R.string.dash_connected) else status.detail.ifBlank { stringResource(R.string.dash_offline) },
+                    if (connected) Status.ok() else Status.bad())
+            }
+        }
+        Group(null, SECTIONS.mapIndexed { i, sec ->
+            { GroupRow(sec.icon, stringResource(sec.title), stringResource(sec.summary), sec.tint, { onSection(i) }) }
+        })
+    }
+}

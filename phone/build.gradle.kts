@@ -14,8 +14,8 @@ android {
         applicationId = "io.github.simbridge"
         minSdk = 34
         targetSdk = 36
-        versionCode = 270
-        versionName = "2.6.0"
+        versionCode = 280
+        versionName = "2.7.0"
     }
     // Same signing source as the gateway app: a git-ignored signing.properties in the project root.
     val localSigning = Properties().apply {
