@@ -1,3 +1,17 @@
+# DuoSIM
+
+**A Samsung-focused fork of SimBridge.** DuoSIM is being validated for a local two-phone setup:
+Galaxy S21 Plus (SM-G996B) as the SIM Gateway and Galaxy S26 Ultra as the Main Phone.
+
+> This is an engineering fork, not yet a separately verified Samsung-compatible release. The
+> upstream implementation, licensing, security model, and attribution are retained. Device-specific
+> compatibility will only be claimed after real call-audio and SMS tests.
+
+See [DuoSIM project plan](DUOSIM_PROJECT.md) for the device matrix, architecture, acceptance tests,
+and build commands.
+
+---
+
 # SimBridge
 
 **Use your phone's SIM on another phone, over Wi-Fi. No root, no server, no cloud.**
