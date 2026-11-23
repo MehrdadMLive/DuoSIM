@@ -19,7 +19,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "android-voice-sip-agent"
+rootProject.name = "DuoSIM"
 
 // Pure JVM modules (no Android dependency; unit-testable on the host)
 include(":voice-api")
